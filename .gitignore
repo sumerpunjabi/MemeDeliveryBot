@@ -1,2 +1,5 @@
 database.ini
 local.env
+/.idea/
+/__pycache__/
+.gitattributes
