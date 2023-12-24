@@ -1,2 +1,0 @@
-clock: python clock.py
-
