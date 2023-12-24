@@ -1,22 +1,25 @@
 from get_image import select_image
-from get_connection import reddit_connect
+from get_connections import reddit_connect
 from database import insert_into_db
-from publish_content import post
+from publish import post
 
 
 def main():
-    try:
-        # starts connection to reddit to fetch image
-        sub = reddit_connect()
+    """
+    Main function to fetch an image from Reddit, post it, and store the post details in a database.
+    """
+    # starts connection to reddit to fetch image
+    subreddit = reddit_connect()
 
-        # selects post from sub and passes it to download
-        selected_post = select_image(sub)
+    # selects post from sub and passes it to download
+    selected_post = select_image(subreddit)
 
-        post(selected_post.url, selected_post.title)
+    # post the selected image
+    post(selected_post.url, selected_post.title)
 
-        # insert post details into db
-        insert_into_db(sub.display_name, selected_post.id, selected_post.title,
-                       selected_post.score, selected_post.upvote_ratio)
+    # insert post details into db
+    insert_into_db(selected_post.id, selected_post.title, selected_post.url)
 
-    except OSError or AttributeError or TypeError as Error:
-        print(Error)
+
+if __name__ == "__main__":
+    main()
