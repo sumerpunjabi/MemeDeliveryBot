@@ -14,12 +14,14 @@ def main():
     # selects post from sub and passes it to download
     selected_post = select_image(subreddit)
 
-    # post the selected image
-    post(selected_post.url, selected_post.title)
+    if selected_post:
+        # post the selected image
+        post(selected_post.url, selected_post.title)
 
-    # insert post details into db
-    insert_into_db(selected_post.id, selected_post.title, selected_post.url)
-
+        # insert post details into db
+        insert_into_db(selected_post.id, selected_post.title, selected_post.url)
+    else:
+        print("Failed to select a post. Please check Reddit connection and subreddit availability.")
 
 if __name__ == "__main__":
     main()
