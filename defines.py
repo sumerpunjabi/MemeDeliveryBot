@@ -7,7 +7,7 @@ def get_credentials() -> Dict[str, str]:
     creds = {
         'access_token': os.getenv('ACCESS_TOKEN'),
         'graph_domain': 'https://graph.facebook.com/',
-        'graph_version': 'v18.0',
+        'graph_version': 'v22.0',
         'instagram_account_id': os.getenv('INSTAGRAM_ACCOUNT_ID'),
     }
     creds['endpoint_base'] = f"{creds['graph_domain']}{creds['graph_version']}/"

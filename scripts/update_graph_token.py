@@ -9,7 +9,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 def get_new_token(app_id, app_secret, access_token):
     """Get a new token using the old token."""
-    url = f"https://graph.facebook.com/v18.0/oauth/access_token"
+    url = f"https://graph.facebook.com/v22.0/oauth/access_token"
     params = {
         'grant_type': 'fb_exchange_token',
         'client_id': app_id,
