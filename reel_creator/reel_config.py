@@ -95,6 +95,11 @@ VIDEO_CODEC = "libx264"
 AUDIO_CODEC = "aac"
 NUM_THREADS = os.cpu_count() or 2 # Number of threads for video processing, defaults to CPU count or 2
 
+# --- Content Filtering ---
+ALLOW_NSFW_CONTENT = False # Filter out NSFW posts if set to False
+PROCESSED_REEL_POSTS_FILE = os.path.join(ASSETS_DIR, "processed_reel_posts.txt") # File to track processed post IDs
+DEFAULT_REEL_SUBREDDITS = ["shortstories", "Showerthoughts", "LifeProTips", "explainlikeimfive", "todayilearned", "AmItheAsshole"] # Default subreddits for auto-selection
+
 
 # --- Function to print config for verification ---
 def print_config_summary():
@@ -112,6 +117,9 @@ def print_config_summary():
         "Background Video Default": BG_VIDEO_PATH_OR_URL,
         "Background Audio Default": BG_AUDIO_PATH_OR_URL,
         "Background Audio Volume": BG_AUDIO_VOLUME,
+        "Allow NSFW Content": ALLOW_NSFW_CONTENT,
+        "Processed Posts File": PROCESSED_REEL_POSTS_FILE,
+        "Default Reel Subreddits": DEFAULT_REEL_SUBREDDITS,
     }
     for key, value in settings_to_print.items():
         print(f"{key}: {value}")
@@ -120,6 +128,12 @@ def print_config_summary():
         print("WARNING: Instagram Access Token is a placeholder.")
     if "YOUR_REDDIT_CLIENT_ID" in REDDIT_CLIENT_ID:
         print("WARNING: Reddit Client ID is a placeholder.")
+
+    # Ensure ASSETS_DIR exists as PROCESSED_REEL_POSTS_FILE depends on it
+    if not os.path.exists(ASSETS_DIR):
+        print(f"WARNING: ASSETS_DIR ('{ASSETS_DIR}') does not exist. It may be created if needed by the application.")
+        # os.makedirs(ASSETS_DIR, exist_ok=True) # Could auto-create, or let app logic handle it.
+
     print("-----------------------------------------")
 
 if __name__ == "__main__":
@@ -127,6 +141,8 @@ if __name__ == "__main__":
     # Verify font paths
     print(f"\nVerifying font path (Regular): {IM_FONT_REGULAR_PATH} - Exists: {os.path.exists(IM_FONT_REGULAR_PATH)}")
     print(f"Verifying font path (Bold): {IM_FONT_BOLD_PATH} - Exists: {os.path.exists(IM_FONT_BOLD_PATH)}")
+    print(f"Processed posts file path: {PROCESSED_REEL_POSTS_FILE}")
+
 
     if not os.path.exists(IM_FONT_REGULAR_PATH) or not os.path.exists(IM_FONT_BOLD_PATH):
         print("\nWARNING: One or more default font files are missing at the specified paths.")

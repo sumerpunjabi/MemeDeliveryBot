@@ -11,7 +11,9 @@ if project_root not in sys.path:
 try:
     from reel_creator.main import generate_reel
     from reel_creator.instagram_uploader import upload_reel, ConfigurationError as UploaderConfigurationError, APIError as UploaderAPIError
-    from reel_creator import reel_config # To potentially access default paths or settings
+    # Import reel_config and scanner functions
+    from reel_creator import reel_config
+    from reel_creator.reddit_scanner import fetch_top_posts_from_subreddits, select_best_post, add_processed_reel_id
 except ImportError as e:
     print(f"Error importing from reel_creator: {e}")
     print("Please ensure reel_creator is installed or PYTHONPATH is set correctly.")
@@ -38,86 +40,136 @@ def handle_reel_command(args):
     """
     Handles the logic for the instagram_reel command.
     """
-    print("--- Instagram Reel Generation and Upload ---")
+    print("INFO: --- Instagram Reel Generation and Upload Process Starting ---")
+
+    reddit_url_to_process = args.url
+    operation_mode = "user-provided URL mode" if reddit_url_to_process else "automatic post selection mode"
+    print(f"INFO: Operating in {operation_mode}.")
+
+    selected_submission_id = None # To store ID if auto-selected
+    selected_submission_title = None # To store title if auto-selected
+
+    if reddit_url_to_process is None:
+        print("INFO: No specific Reddit URL provided. Attempting to automatically select a post...")
+        try:
+            print(f"INFO: Fetching top posts from default subreddits: {reel_config.DEFAULT_REEL_SUBREDDITS}")
+            submissions = fetch_top_posts_from_subreddits(reel_config.DEFAULT_REEL_SUBREDDITS)
+
+            if not submissions: # Check if fetch_top_posts_from_subreddits returned empty
+                print("ERROR: Failed to fetch any posts from Reddit (fetch_top_posts_from_subreddits returned empty). Cannot select a post.")
+                print("INFO: Please check Reddit API credentials in reel_config.py and scanner logs for more details.")
+                return
+
+            selected_submission = select_best_post(submissions)
+            if selected_submission:
+                reddit_url_to_process = selected_submission.url
+                selected_submission_id = selected_submission.id
+                selected_submission_title = selected_submission.title
+                # The add_processed_reel_id is now called by select_best_post if a post is chosen,
+                # but we should call it here to confirm this specific selection is final for this run.
+                # However, select_best_post doesn't add, it just filters. So, adding here is correct.
+                add_processed_reel_id(reel_config.PROCESSED_REEL_POSTS_FILE, selected_submission_id)
+                print(f"INFO: Automatically selected post: '{selected_submission_title}'")
+                print(f"INFO: URL: {reddit_url_to_process}")
+                print(f"INFO: Post ID {selected_submission_id} has been recorded as processed for this run.")
+            else:
+                print("ERROR: Failed to automatically select a suitable Reddit post (select_best_post returned None).")
+                print("INFO: This could be due to all fetched posts being unsuitable (e.g., stickied, NSFW, already processed, or other filters). Check scanner logs.")
+                return
+        except Exception as e: # Catch any unexpected error from scanner functions
+            print(f"ERROR: An unexpected error occurred during automatic post selection: {e}")
+            import traceback
+            traceback.print_exc()
+            return
+    else:
+        print(f"INFO: Using user-provided Reddit URL: {reddit_url_to_process}")
+        # Future enhancement: fetch submission for user-provided URL to get canonical ID and add to processed list.
+
+    if not reddit_url_to_process: # Final check if a URL was determined
+        print("CRITICAL ERROR: No Reddit URL to process. Exiting.")
+        return
+
+    print(f"INFO: Final Reddit URL for processing: {reddit_url_to_process}")
 
     # 1. Determine Output Path
-    output_dir = os.path.dirname(args.output_path) if args.output_path else DEFAULT_OUTPUT_DIR
-    if not os.path.exists(output_dir):
+    # Ensure output_dir is defined before it's potentially used by filename_base logic
+    output_dir_base_name = os.path.dirname(args.output_path) if args.output_path else DEFAULT_OUTPUT_DIR
+    if not os.path.exists(output_dir_base_name):
         try:
-            os.makedirs(output_dir)
-            print(f"Created output directory: {output_dir}")
+            os.makedirs(output_dir_base_name)
+            print(f"INFO: Created output directory: {output_dir_base_name}")
         except OSError as e:
-            print(f"Error creating output directory {output_dir}: {e}")
+            print(f"ERROR: Could not create output directory {output_dir_base_name}: {e}")
             return
 
-    # Try to get a somewhat unique filename if not provided
-    filename_base = "generated_reel"
+    post_id_for_naming = selected_submission_id if selected_submission_id else extract_reddit_post_id(reddit_url_to_process) # No "or """ needed due to check above
+
     if not args.output_path:
-        post_id_for_name = extract_reddit_post_id(args.url)
-        if post_id_for_name:
-            filename_base = post_id_for_name
-        determined_output_path = os.path.join(output_dir, f"{filename_base}.mp4")
+        filename_base = post_id_for_naming if post_id_for_naming else "generated_reel" # Ensure filename_base is always valid
+        determined_output_path = os.path.join(output_dir_base_name, f"{filename_base}.mp4")
     else:
         determined_output_path = args.output_path
 
-    print(f"Output video path set to: {determined_output_path}")
+    output_dir_for_generate_reel = os.path.dirname(determined_output_path)
 
-    # Placeholder for actual post title - to be returned by generate_reel ideally
-    actual_caption = args.caption
+    print(f"INFO: Output video path set to: {determined_output_path}")
+
+    # Determine actual_caption
+    if args.caption:
+        actual_caption = args.caption
+        print(f"INFO: Using user-provided caption: \"{actual_caption}\"")
+    elif selected_submission_title: # Use title from auto-selected post if caption not given
+        actual_caption = selected_submission_title
+        print(f"INFO: Using title from auto-selected post as caption: \"{actual_caption}\"")
+    else: # Fallback to fetching title if URL was given but no caption, or use default
+        if reddit_url_to_process: # Should always be true here due to earlier check
+            print(f"INFO: Attempting to fetch title from Reddit URL for caption...")
+            try:
+                from reel_creator.main import fetch_reddit_content # fetch_reddit_content needs config dict
+                reddit_api_cfg_for_caption = {
+                    "REDDIT_CLIENT_ID": reel_config.REDDIT_CLIENT_ID,
+                    "REDDIT_CLIENT_SECRET": reel_config.REDDIT_CLIENT_SECRET,
+                    "REDDIT_USER_AGENT": reel_config.REDDIT_USER_AGENT,
+                    "REDDIT_USERNAME": reel_config.REDDIT_USERNAME,
+                    "REDDIT_PASSWORD": reel_config.REDDIT_PASSWORD,
+                }
+                title_for_caption, _, _ = fetch_reddit_content(reddit_url_to_process, reddit_api_cfg_for_caption)
+                if title_for_caption:
+                    actual_caption = title_for_caption
+                    print(f"INFO: Using fetched title as caption: \"{actual_caption}\"")
+                else:
+                    actual_caption = "Reel created with ReelCreatorBot"
+                    print(f"WARNING: Fetched title was empty. Using default caption: \"{actual_caption}\"")
+            except Exception as e:
+                print(f"WARNING: Could not auto-fetch title for caption from URL due to: {e}. Using default caption.")
+                actual_caption = "Check out this cool reel!"
+        else: # Should not be reached if reddit_url_to_process is guaranteed
+             actual_caption = "Check out this cool reel!"
+             print(f"INFO: Using generic default caption: \"{actual_caption}\"")
+
     video_file_path = None
 
     # 2. Call generate_reel
     try:
-        print(f"\nStarting reel generation for URL: {args.url}...")
-        # In the future, generate_reel could return (video_path, post_title)
-        # For now, we assume it just returns video_path.
-        # And caption is handled separately or needs to be fetched again if None.
+        print(f"INFO: Starting reel generation for URL: {reddit_url_to_process}...")
 
-        # If args.caption is None, we might need to fetch title here first, or rely on generate_reel to do it
-        # and somehow pass it along. For this subtask, we'll use provided caption or a default.
-
-        # generate_reel is expected to use its internal config for most things.
-        # The `reel_id` could be derived from post_id_for_name for better temp folder naming.
-        reel_id_for_generation = extract_reddit_post_id(args.url) or "cli_reel"
+        reel_id_for_generation = selected_submission_id if selected_submission_id else extract_reddit_post_id(reddit_url_to_process) or "cli_reel"
+        print(f"INFO: Using reel_id for generation: {reel_id_for_generation}")
 
         video_file_path = generate_reel(
-            reddit_url=args.url,
-            output_directory=os.path.dirname(determined_output_path), # generate_reel saves it in output_directory/reel_id_prefix_reel_id.mp4
+            reddit_url=reddit_url_to_process,
+            output_directory=output_dir_for_generate_reel,
             reel_id=reel_id_for_generation
-            # Note: generate_reel currently saves to assets/temp/{reel_id}/final_reel...
-            # then moves to output_directory. We need to ensure filenames align or adjust.
-            # For now, let's assume generate_reel saves it to the final intended path.
-            # Re-evaluating generate_reel's signature:
-            # `output_directory` is where the *final* reel is saved.
-            # It constructs the final name itself. So we should pass `output_dir` not `determined_output_path`.
         )
 
-        # If generate_reel uses its own naming convention within output_directory:
-        # We need to know what that path is.
-        # The current main.py's generate_reel saves "reel_output_dir/reel_id.mp4"
-        # So, the `video_file_path` returned by it *is* the correct path.
-
         if video_file_path and os.path.exists(video_file_path):
-            print(f"Reel generated successfully: {video_file_path}")
-            # If caption is not provided, and generate_reel doesn't return it, we use a default.
-            # This part needs refinement: ideally generate_reel returns title.
-            if actual_caption is None:
-                # Fetch title again (crude, should be returned by generate_reel)
-                try:
-                    from reel_creator.main import fetch_reddit_content
-                    title, _, _ = fetch_reddit_content(args.url) # Only if API creds are set
-                    actual_caption = title if title else "Reel created with ReelCreatorBot"
-                except Exception as e:
-                    print(f"Warning: Could not auto-fetch title for caption due to: {e}. Using default.")
-                    actual_caption = "Check out this cool reel!"
-                print(f"Using caption: \"{actual_caption}\"")
-
+            print(f"INFO: Reel generated successfully: {video_file_path}")
         else:
-            print("Error: Reel generation failed or video file not found.")
+            print("ERROR: Reel generation failed or video file not found at the expected path.")
             return # Exit if generation failed
 
     except Exception as e:
-        print(f"An error occurred during reel generation: {e}")
+        print(f"ERROR: An error occurred during reel generation: {e}")
         import traceback
         traceback.print_exc()
         return
@@ -125,14 +177,14 @@ def handle_reel_command(args):
     # 3. Call upload_reel (if not --no_upload)
     if not args.no_upload:
         if not video_file_path:
-            print("Cannot upload: Video file path is not available.")
+            print("ERROR: Cannot upload because video file path is not available from generation step.")
             return
 
         share_to_feed_bool = args.share_to_feed.lower() == "true"
 
-        print(f"\nStarting Instagram upload for {video_file_path}...")
-        print(f"Caption: \"{actual_caption}\"")
-        print(f"Share to feed: {share_to_feed_bool}")
+        print(f"INFO: \nStarting Instagram upload for {video_file_path}...")
+        print(f"INFO: Caption for upload: \"{actual_caption}\"")
+        print(f"INFO: Share to feed setting: {share_to_feed_bool}")
 
         try:
             media_id = upload_reel(
@@ -141,24 +193,24 @@ def handle_reel_command(args):
                 share_to_feed=share_to_feed_bool
             )
             if media_id:
-                print(f"Reel uploaded successfully to Instagram! Media ID: {media_id}")
+                print(f"SUCCESS: Reel uploaded successfully to Instagram! Media ID: {media_id}")
             else:
-                print("Error: Instagram upload failed. Check logs for details.")
+                print("ERROR: Instagram upload failed. Media ID not returned. Check logs from instagram_uploader for details.")
         except UploaderConfigurationError as e:
-            print(f"Instagram Upload Configuration Error: {e}")
-            print("Please ensure your Instagram API credentials (access token, user ID) are correctly set in reel_config.py.")
+            print(f"ERROR: Instagram Upload Configuration Error: {e}")
+            print("INFO: Please ensure your Instagram API credentials (access token, user ID) are correctly set in reel_config.py.")
         except UploaderAPIError as e:
-            print(f"Instagram API Error: {e}")
-        except FileNotFoundError as e: # Should be caught by generate_reel, but good practice
-            print(f"Error: Video file not found for upload: {e}")
+            print(f"ERROR: Instagram API Error during upload: {e}")
+        except FileNotFoundError: # Should be caught by generate_reel, but good practice
+            print(f"ERROR: Video file not found for upload: {video_file_path}")
         except Exception as e:
-            print(f"An unexpected error occurred during Instagram upload: {e}")
+            print(f"ERROR: An unexpected error occurred during Instagram upload: {e}")
             import traceback
             traceback.print_exc()
     else:
-        print("\nSkipping Instagram upload as per --no_upload flag.")
+        print("INFO: Skipping Instagram upload as per --no_upload flag.")
 
-    print("\n--- Process Complete ---")
+    print("INFO: --- Process Complete ---")
 
 
 def main():
@@ -170,8 +222,11 @@ def main():
     parser.add_argument(
         "--url", "-u",
         type=str,
-        required=True,
-        help="URL of the Reddit post."
+        required=False, # Changed to False
+        default=None,   # Default to None
+        help=("URL of the Reddit post. If not provided, a suitable post will be automatically "
+              "selected from default subreddits (e.g., AskReddit, shortstories) "
+              "based on top daily score and suitability filters.")
     )
     parser.add_argument(
         "--output_path", "-o",
