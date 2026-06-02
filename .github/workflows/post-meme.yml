@@ -30,23 +30,20 @@ jobs:
         with:
           path: app
 
-      - name: Checkout tracker branch
-        id: checkout_tracker
-        continue-on-error: true
-        uses: actions/checkout@v4
-        with:
-          ref: bot-state
-          path: bot-state
-
-      - name: Initialize tracker branch
-        if: steps.checkout_tracker.outcome == 'failure'
+      - name: Prepare tracker branch
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           rm -rf bot-state
-          mkdir bot-state
-          cd bot-state
-          git init
-          git checkout -b bot-state
-          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          if git ls-remote --exit-code --heads "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" bot-state >/dev/null 2>&1; then
+            git clone --branch bot-state --single-branch "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" bot-state
+          else
+            mkdir bot-state
+            cd bot-state
+            git init
+            git checkout -b bot-state
+            git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          fi
 
       - name: Ensure tracker file exists
         run: |
