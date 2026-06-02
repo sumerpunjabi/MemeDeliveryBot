@@ -1,0 +1,111 @@
+name: Post Meme
+
+on:
+  schedule:
+    - cron: "17 15 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Select and hash a candidate without publishing or updating bot-state"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: meme-bot-post
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout application code
+        uses: actions/checkout@v4
+        with:
+          path: app
+
+      - name: Checkout tracker branch
+        id: checkout_tracker
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          ref: bot-state
+          path: bot-state
+
+      - name: Initialize tracker branch
+        if: steps.checkout_tracker.outcome == 'failure'
+        run: |
+          rm -rf bot-state
+          mkdir bot-state
+          cd bot-state
+          git init
+          git checkout -b bot-state
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+
+      - name: Ensure tracker file exists
+        run: |
+          mkdir -p bot-state/state
+          touch bot-state/state/posted.jsonl
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        working-directory: app
+        run: pip install -r requirements.txt
+
+      - name: Run meme bot
+        working-directory: app
+        env:
+          ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+          INSTAGRAM_ACCOUNT_ID: ${{ secrets.INSTAGRAM_ACCOUNT_ID }}
+          REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
+          REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+          REDDIT_USER_AGENT: ${{ secrets.REDDIT_USER_AGENT }}
+          REDDIT_USERNAME: ${{ secrets.REDDIT_USERNAME }}
+          REDDIT_PASSWORD: ${{ secrets.REDDIT_PASSWORD }}
+          SUBREDDITS: ${{ vars.SUBREDDITS || 'memes' }}
+          POST_TIME_FILTER: ${{ vars.POST_TIME_FILTER || 'day' }}
+          POST_LIMIT: ${{ vars.POST_LIMIT || '100' }}
+          MIN_SCORE: ${{ vars.MIN_SCORE || '0' }}
+          GRAPH_VERSION: ${{ vars.GRAPH_VERSION || 'v22.0' }}
+          REQUEST_TIMEOUT_SECONDS: ${{ vars.REQUEST_TIMEOUT_SECONDS || '20' }}
+          MAX_RETRY_ATTEMPTS: ${{ vars.MAX_RETRY_ATTEMPTS || '3' }}
+          RETRY_BASE_SECONDS: ${{ vars.RETRY_BASE_SECONDS || '2' }}
+          USE_REDDIT_SAVED_GUARD: ${{ vars.USE_REDDIT_SAVED_GUARD || 'false' }}
+          MARK_REDDIT_SAVED: ${{ vars.MARK_REDDIT_SAVED || 'false' }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || vars.POSTING_DRY_RUN || 'false' }}
+          TRACKER_PATH: ../bot-state/state/posted.jsonl
+        run: python -m meme_bot.runner
+
+      - name: Commit tracker update
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || vars.POSTING_DRY_RUN || 'false' }}
+        run: |
+          if [ "${DRY_RUN}" = "true" ]; then
+            echo "Dry run enabled; skipping tracker commit."
+            exit 0
+          fi
+          cd bot-state
+          if [ ! -s state/posted.jsonl ]; then
+            echo "Tracker is empty; nothing to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state/posted.jsonl
+          if git diff --cached --quiet; then
+            echo "No tracker changes to commit."
+            exit 0
+          fi
+          git commit -m "Track posted meme"
+          git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:bot-state

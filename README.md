@@ -1,112 +1,137 @@
-# Instagram Content Creator Bot
+# MemeDeliveryBot
 
-This project helps automate content creation and posting to Instagram using content sourced from Reddit. It has two main functionalities:
-1.  Fetching and posting images from specified subreddits.
-2.  Generating video reels from Reddit posts (including title, selftext, and top comments) with text-to-speech and background media, and then uploading them to Instagram.
+Image-only automation for sourcing meme images from Reddit and publishing them to Instagram with the Instagram Graph API.
 
-## Features
+This version intentionally does not support Instagram Reels, videos, TTS, ffmpeg processing, or a hosted database. Repost tracking is handled by an audit trail file on a dedicated Git branch.
 
-### Image Posting
-- Fetches top images from a specified subreddit.
-- Posts images to Instagram with a caption.
-- Stores posted content details in a database.
+## How It Works
 
-### Reel Creation & Upload
-- Fetches content (title, selftext, top comments) from a Reddit post URL.
-- Converts text segments to speech using Text-to-Speech (TTS) engines.
-- Generates images with text overlays for each segment.
-- Supports custom background video and audio for reels.
-- Assembles video segments, TTS audio, and background media using `ffmpeg`.
-- Provides a command-line interface (`reel_command.py`) to generate and upload reels.
-- Allows optional sharing of the reel to the Instagram feed.
+1. Fetch top image posts from configured Reddit subreddits.
+2. Filter out unsafe or unsupported content: NSFW, spoiler, stickied, gallery, video, GIF, and non-image URLs.
+3. Load `state/posted.jsonl` from the `bot-state` branch.
+4. Skip any candidate already seen by Reddit id, normalized image URL, or image SHA-256 hash.
+5. Publish the selected image to Instagram.
+6. Append the successful post to `state/posted.jsonl`.
+7. Commit and push that tracker update back to `bot-state`.
 
-## Setup
+The tracker is only written after Instagram returns a published media id.
 
-### 1. Dependencies
-- Install Python 3.x.
-- Install `ffmpeg` and ensure it's in your system's PATH. `ffmpeg` is required for video processing in the reel creation part.
-- Install Python packages:
-  ```bash
-  pip install -r requirements.txt
-  ```
-  **Note:** The `requirements.txt` file might have a UTF-16 encoding. If you encounter issues, you might need to convert it to UTF-8 first or install packages manually by inspecting the file content. Common packages include `praw`, `requests`, `psycopg2`, `Pillow`, `moviepy` (or direct `ffmpeg` calls are used), `gTTS` or other TTS libraries.
+## Project Structure
 
-### 2. Configuration
+```text
+meme_bot/
+  config.py          Environment configuration and validation
+  instagram.py       Image-only Instagram Graph API client
+  reddit_source.py   Reddit candidate fetching and filtering
+  retry.py           HTTP retry and Retry-After handling
+  runner.py          Main orchestration
+  token_manager.py   Instagram token expiry check and refresh
+  tracker.py         JSONL audit trail loading, duplicate checks, and hashing
+scripts/
+  refresh_instagram_token.py
+.github/workflows/
+  post-meme.yml
+  refresh-instagram-token.yml
+main.py              Thin entrypoint wrapper
+publish.py           Thin image-publishing compatibility wrapper
+```
 
-**A. For Image Posting (`main.py`):**
-- **Instagram Credentials:** Configure your Instagram Account ID, Access Token, and API endpoint base in `defines.py` within the `get_credentials()` function.
-- **Reddit API Credentials (for image fetching):** Credentials for `praw` should be set up as per `praw` documentation (e.g., via a `praw.ini` file or environment variables) if `reddit_connect()` in `get_connections.py` requires them.
-- **Database:** The `database.py` script uses `psycopg2` for PostgreSQL. Ensure you have a PostgreSQL database running and configure the connection details (host, database name, user, password) within `database.py`. Run the table creation script if needed: `python scripts/create_table.py`.
+## Requirements
 
-**B. For Reel Creation (`reel_command.py` & `reel_creator/`):**
-- **Reddit API Credentials:** Add your Reddit client ID, client secret, user agent (and optionally username/password for script authentication) in `reel_creator/reel_config.py`.
-- **Instagram API Credentials (for reel uploading):** Configure your Instagram User ID and Access Token in `reel_creator/reel_config.py` for the `upload_reel` functionality.
-- **TTS Engine:** The default TTS is gTTS. You can configure voice parameters in `reel_creator/reel_config.py`. If using other TTS engines, additional setup might be needed.
-- **Fonts:** Ensure the font paths in `reel_creator/reel_config.py` (e.g., `IM_FONT_REGULAR_PATH`, `IM_FONT_BOLD_PATH`) point to valid `.ttf` font files. Default fonts are included in `reel_creator/assets/fonts/`.
-- **Temporary Directories:** The system will create temporary directories under `reel_creator/assets/temp/` for processing. Ensure write permissions.
+- Python 3.10 or newer.
+- Reddit API credentials for a script app.
+- Instagram Business or Creator account connected for Instagram Graph API publishing.
+- GitHub Actions secrets for scheduled automation.
 
-## Usage
+Install dependencies:
 
-### 1. Posting Images
-To fetch an image from Reddit and post it to Instagram:
+```bash
+pip install -r requirements.txt
+```
+
+## Configuration
+
+Required GitHub Actions secrets:
+
+- `ACCESS_TOKEN`
+- `INSTAGRAM_ACCOUNT_ID`
+- `FB_APP_ID`
+- `FB_APP_SECRET`
+- `REDDIT_CLIENT_ID`
+- `REDDIT_CLIENT_SECRET`
+- `REDDIT_USER_AGENT`
+- `GH_SECRETS_TOKEN`
+
+Optional secrets:
+
+- `REDDIT_USERNAME`
+- `REDDIT_PASSWORD`
+
+Optional GitHub Actions variables or local environment variables:
+
+- `SUBREDDITS`: comma-separated list, default `memes`
+- `POST_TIME_FILTER`: Reddit listing period, default `day`
+- `POST_LIMIT`: posts scanned per subreddit, default `100`
+- `MIN_SCORE`: minimum Reddit score, default `0`
+- `TRACKER_PATH`: default `state/posted.jsonl`
+- `GRAPH_VERSION`: default `v22.0`
+- `REQUEST_TIMEOUT_SECONDS`: default `20`
+- `MAX_RETRY_ATTEMPTS`: default `3`
+- `RETRY_BASE_SECONDS`: default `2`
+- `REFRESH_THRESHOLD_DAYS`: default `21`
+- `DRY_RUN`: when true, selects and hashes a candidate but does not publish or write tracker state
+- `USE_REDDIT_SAVED_GUARD`: skip Reddit submissions already saved by the authenticated Reddit account
+- `MARK_REDDIT_SAVED`: save the Reddit submission after Instagram publish succeeds
+
+## GitHub Actions
+
+### Posting
+
+`.github/workflows/post-meme.yml` runs daily and supports manual dispatch.
+
+For a manual dry run, use workflow dispatch with `dry_run` set to `true`. The workflow still loads the tracker and hashes the selected image, but it does not publish to Instagram or append tracker state.
+
+The first successful live run creates the `bot-state` branch if it does not exist.
+
+### Token Refresh
+
+`.github/workflows/refresh-instagram-token.yml` runs weekly and supports manual dispatch.
+
+The workflow checks token validity and expiry. If the token is inside the refresh threshold, it writes the refreshed token to a workflow-local temp file and updates the GitHub Actions `ACCESS_TOKEN` secret using `GH_SECRETS_TOKEN`.
+
+`GH_SECRETS_TOKEN` should be a fine-grained token or GitHub App token with permission to update Actions secrets for this repository.
+
+## Local Use
+
+Dry run:
+
+```bash
+$env:DRY_RUN="true"
+python main.py
+```
+
+Live run:
+
 ```bash
 python main.py
 ```
-Ensure `defines.py` and `database.py` are correctly configured.
 
-### 2. Generating and Uploading Reels
-Use the `reel_command.py` script:
+Refresh token locally:
+
 ```bash
-python reel_command.py --url <REDDIT_POST_URL> [options]
-```
-**Key Options:**
--   `--url` / `-u` (required): URL of the Reddit post.
--   `--output_path` / `-o`: Full path to save the generated MP4 reel (e.g., `my_reels/my_video.mp4`). Defaults to `./reels_output/<reddit_post_id_or_generic_name>.mp4`.
--   `--caption` / `-c`: Caption for the Instagram Reel. Defaults to the Reddit post title.
--   `--no_upload` / `-n`: Generate video only, do not upload to Instagram.
--   `--share_to_feed`: Set to "true" or "false" to share/not share the reel to your main Instagram feed. Defaults to "true".
-
-Example:
-```bash
-python reel_command.py -u "https://www.reddit.com/r/somecoolsubreddit/comments/xyz123/a_great_story/" -o "my_reels/story_reel.mp4" -c "Check out this story!"
+python scripts/refresh_instagram_token.py
 ```
 
-You can also test the core reel generation logic by running `reel_creator/main.py` directly, which has a test setup in its `if __name__ == "__main__":` block.
+## Tracker Format
 
-## File Structure (Simplified)
+Each successful post appends one JSON object to `state/posted.jsonl`:
 
-```
-.
-├── main.py                 # Main script for Reddit image posting
-├── publish.py              # Handles Instagram publishing for images
-├── database.py             # Database interaction (PostgreSQL)
-├── get_connections.py      # Reddit connection for image posting
-├── defines.py              # Credentials and constants for image posting
-├── reel_command.py         # CLI for generating and uploading reels
-├── requirements.txt        # Project dependencies
-├── reel_creator/           # Package for reel creation logic
-│   ├── main.py             # Core reel generation orchestration
-│   ├── reel_config.py      # Configuration for reel creator
-│   ├── reel_tts.py         # Text-to-Speech handling
-│   ├── imagenarator.py     # Image generation from text
-│   ├── reel_assembler.py   # Video assembly using ffmpeg
-│   ├── instagram_uploader.py # Handles reel uploading to Instagram
-│   ├── assets/             # Assets for reel creation (fonts, temp files)
-│   └── ...                 # Other helper modules
-├── scripts/                # Utility scripts (e.g., DB setup)
-└── README.md               # This file
+```json
+{"reddit_id":"abc123","image_url":"https://i.redd.it/example.jpg","image_hash":"...","title":"Example","subreddit":"memes","instagram_media_id":"178...","posted_at":"2026-06-02T00:00:00Z"}
 ```
 
-## Contributing
+Malformed lines are ignored with a warning so one bad audit line does not stop posting.
 
-Contributions are welcome! Please follow these steps:
-1.  Fork the repository.
-2.  Create a new branch (`git checkout -b feature/your-feature-name`).
-3.  Make your changes.
-4.  Commit your changes (`git commit -m 'Add some feature'`).
-5.  Push to the branch (`git push origin feature/your-feature-name`).
-6.  Open a Pull Request.
+## Recovery
 
-## License
-
-Consider adding an open-source license. The [MIT License](https://opensource.org/licenses/MIT) is a popular choice. Create a `LICENSE` file in the root of the project with the license text.
+If Instagram publishing succeeds but the workflow fails before pushing `bot-state`, inspect the workflow logs for the Reddit id and Instagram media id, then manually add the corresponding record to `state/posted.jsonl` on the `bot-state` branch. Enabling `MARK_REDDIT_SAVED=true` provides a secondary guard when Reddit user credentials are configured.
