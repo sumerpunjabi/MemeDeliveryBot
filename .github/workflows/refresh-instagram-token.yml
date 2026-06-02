@@ -30,6 +30,7 @@ jobs:
       - name: Check and refresh token
         id: refresh
         env:
+          PYTHONPATH: ${{ github.workspace }}
           ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
           FB_APP_ID: ${{ secrets.FB_APP_ID }}
           FB_APP_SECRET: ${{ secrets.FB_APP_SECRET }}
