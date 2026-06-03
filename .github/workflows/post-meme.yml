@@ -2,7 +2,7 @@ name: Post Meme
 
 on:
   schedule:
-    - cron: "17 15 * * *"
+    - cron: "17 14,23 * * *"
   workflow_dispatch:
     inputs:
       dry_run:

@@ -87,7 +87,7 @@ Optional GitHub Actions variables or local environment variables:
 
 ### Posting
 
-`.github/workflows/post-meme.yml` runs daily and supports manual dispatch.
+`.github/workflows/post-meme.yml` runs twice daily at 14:17 and 23:17 UTC and supports manual dispatch.
 
 For a manual dry run, use workflow dispatch with `dry_run` set to `true`. The workflow still loads the tracker and hashes the selected image, but it does not publish to Instagram or append tracker state.
 
@@ -98,6 +98,8 @@ The first successful live run creates the `bot-state` branch if it does not exis
 `.github/workflows/refresh-instagram-token.yml` runs weekly and supports manual dispatch.
 
 The workflow checks token validity and expiry. If the token is inside the refresh threshold, it writes the refreshed token to a workflow-local temp file and updates the GitHub Actions `ACCESS_TOKEN` secret using `GH_SECRETS_TOKEN`.
+
+Weekly is intentional: Meta long-lived tokens are a multi-week expiry concern, and the script no-ops unless the token is inside `REFRESH_THRESHOLD_DAYS`.
 
 `GH_SECRETS_TOKEN` should be a fine-grained token or GitHub App token with permission to update Actions secrets for this repository.
 
