@@ -1,7 +1,7 @@
 import unittest
 from types import SimpleNamespace
 
-from meme_bot.reddit_source import is_image_submission, to_candidate
+from meme_bot.reddit_source import is_image_submission, rejection_reason, to_candidate
 
 
 def submission(**overrides):
@@ -29,20 +29,22 @@ class RedditSourceTest(unittest.TestCase):
 
     def test_rejects_non_image_and_unsafe_content(self):
         reject_cases = [
-            {"url": "https://i.redd.it/a.gif"},
-            {"url": "https://v.redd.it/video"},
-            {"stickied": True},
-            {"over_18": True},
-            {"spoiler": True},
-            {"is_video": True},
-            {"is_gallery": True},
-            {"url": "https://www.reddit.com/gallery/abc"},
-            {"post_hint": "hosted:video"},
-            {"score": 1},
+            ({"url": "https://i.redd.it/a.gif"}, "unsupported_extension"),
+            ({"url": "https://v.redd.it/video"}, "unsupported_domain"),
+            ({"stickied": True}, "stickied"),
+            ({"over_18": True}, "nsfw"),
+            ({"spoiler": True}, "spoiler"),
+            ({"is_video": True}, "video"),
+            ({"is_gallery": True}, "gallery"),
+            ({"url": "https://www.reddit.com/gallery/abc"}, "gallery_url"),
+            ({"post_hint": "hosted:video"}, "post_hint_hosted:video"),
+            ({"score": 1}, "low_score"),
         ]
-        for case in reject_cases:
+        for case, reason in reject_cases:
             with self.subTest(case=case):
-                self.assertFalse(is_image_submission(submission(**case), min_score=10))
+                item = submission(**case)
+                self.assertFalse(is_image_submission(item, min_score=10))
+                self.assertEqual(rejection_reason(item, min_score=10), reason)
 
     def test_saved_guard_is_optional(self):
         saved = submission(saved=True)

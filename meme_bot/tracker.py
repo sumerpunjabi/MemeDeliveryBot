@@ -118,8 +118,13 @@ def calculate_image_hash(
     timeout: float,
     max_attempts: int,
     base_delay_seconds: float,
+    user_agent: str | None = None,
     max_bytes: int = 25 * 1024 * 1024,
 ) -> str:
+    headers = {"Accept": "image/*"}
+    if user_agent:
+        headers["User-Agent"] = user_agent
+
     response = request_with_retries(
         session,
         "GET",
@@ -128,7 +133,7 @@ def calculate_image_hash(
         max_attempts=max_attempts,
         base_delay_seconds=base_delay_seconds,
         stream=True,
-        headers={"Accept": "image/*"},
+        headers=headers,
     )
     if response.status_code >= 400:
         response.close()

@@ -47,34 +47,41 @@ def _has_supported_extension(url: str) -> bool:
 
 
 def is_image_submission(submission: Any, min_score: int = 0, use_saved_guard: bool = False) -> bool:
+    return rejection_reason(submission, min_score=min_score, use_saved_guard=use_saved_guard) is None
+
+
+def rejection_reason(submission: Any, min_score: int = 0, use_saved_guard: bool = False) -> str | None:
     url = str(getattr(submission, "url", "") or "")
     parsed = urlsplit(url)
     domain = parsed.netloc.lower()
 
     if not url or domain in REJECTED_DOMAINS:
-        return False
+        return "unsupported_domain"
     if getattr(submission, "stickied", False):
-        return False
+        return "stickied"
     if getattr(submission, "over_18", False):
-        return False
+        return "nsfw"
     if getattr(submission, "spoiler", False):
-        return False
+        return "spoiler"
     if getattr(submission, "is_video", False):
-        return False
+        return "video"
     if getattr(submission, "is_gallery", False):
-        return False
+        return "gallery"
     if "/gallery/" in url:
-        return False
+        return "gallery_url"
     if int(getattr(submission, "score", 0) or 0) < min_score:
-        return False
+        return "low_score"
     if use_saved_guard and bool(getattr(submission, "saved", False)):
-        return False
+        return "saved"
 
     post_hint = getattr(submission, "post_hint", None)
     if post_hint and post_hint != "image":
-        return False
+        return f"post_hint_{post_hint}"
 
-    return _has_supported_extension(url)
+    if not _has_supported_extension(url):
+        return "unsupported_extension"
+
+    return None
 
 
 def to_candidate(submission: Any) -> ImageCandidate:
@@ -92,21 +99,39 @@ def to_candidate(submission: Any) -> ImageCandidate:
 def fetch_image_candidates(reddit: Any, config: BotConfig) -> list[ImageCandidate]:
     candidates: list[ImageCandidate] = []
     for subreddit_name in config.subreddits:
-        LOGGER.info("Scanning subreddit", extra={"subreddit": subreddit_name})
+        LOGGER.info("Scanning subreddit: subreddit=%s", subreddit_name)
+        seen_count = 0
+        accepted_count = 0
+        rejection_counts: dict[str, int] = {}
         try:
             subreddit = reddit.subreddit(subreddit_name)
             submissions: Iterable[Any] = subreddit.top(config.post_time_filter, limit=config.post_limit)
             for submission in submissions:
-                if is_image_submission(
+                seen_count += 1
+                reason = rejection_reason(
                     submission,
                     min_score=config.min_score,
                     use_saved_guard=config.use_reddit_saved_guard,
-                ):
+                )
+                if reason is None:
+                    accepted_count += 1
                     candidates.append(to_candidate(submission))
+                else:
+                    rejection_counts[reason] = rejection_counts.get(reason, 0) + 1
         except Exception as exc:
             LOGGER.warning(
-                "Skipping subreddit after Reddit API error",
-                extra={"subreddit": subreddit_name, "error_class": type(exc).__name__},
+                "Skipping subreddit after Reddit API error: subreddit=%s error_class=%s error=%s",
+                subreddit_name,
+                type(exc).__name__,
+                exc,
+            )
+        finally:
+            LOGGER.info(
+                "Subreddit scan result: subreddit=%s seen=%s accepted=%s rejections=%s",
+                subreddit_name,
+                seen_count,
+                accepted_count,
+                rejection_counts,
             )
 
     candidates.sort(key=lambda item: item.score, reverse=True)

@@ -32,8 +32,10 @@ class FakeImageResponse:
 class FakeSession:
     def __init__(self, response):
         self.response = response
+        self.last_request = None
 
     def request(self, method, url, timeout, **kwargs):
+        self.last_request = {"method": method, "url": url, "timeout": timeout, **kwargs}
         return self.response
 
 
@@ -97,15 +99,18 @@ class TrackerTest(unittest.TestCase):
     def test_calculate_image_hash(self):
         body = b"image bytes"
         response = FakeImageResponse(body)
+        session = FakeSession(response)
         digest = calculate_image_hash(
             "https://i.redd.it/a.jpg",
-            FakeSession(response),
+            session,
             timeout=1,
             max_attempts=1,
             base_delay_seconds=0,
+            user_agent="test-agent",
         )
 
         self.assertEqual(digest, hashlib.sha256(body).hexdigest())
+        self.assertEqual(session.last_request["headers"]["User-Agent"], "test-agent")
         self.assertTrue(response.closed)
 
 
