@@ -23,6 +23,7 @@ class ReelCandidate:
     score: int
     duration_seconds: int | None
     saved: bool
+    media_url: str | None = None
     submission: Any = None
 
 
@@ -45,6 +46,17 @@ def _duration_seconds(submission: Any) -> int | None:
         return int(duration)
     except (TypeError, ValueError):
         return None
+
+
+def _reddit_video_url(submission: Any) -> str | None:
+    reddit_video = _reddit_video(submission)
+    if not reddit_video:
+        return None
+    for key in ("hls_url", "dash_url", "fallback_url"):
+        value = reddit_video.get(key)
+        if value:
+            return str(value)
+    return None
 
 
 def _reddit_permalink(submission: Any) -> str:
@@ -87,6 +99,8 @@ def reel_rejection_reason(
         return f"post_hint_{post_hint}"
     if not is_video and post_hint != "hosted:video":
         return "not_video"
+    if not _reddit_video_url(submission):
+        return "missing_video_url"
 
     duration_seconds = _duration_seconds(submission)
     if duration_seconds is not None and duration_seconds < MIN_REEL_DURATION_SECONDS:
@@ -125,6 +139,7 @@ def to_reel_candidate(submission: Any) -> ReelCandidate:
         score=int(getattr(submission, "score", 0) or 0),
         duration_seconds=_duration_seconds(submission),
         saved=bool(getattr(submission, "saved", False)),
+        media_url=_reddit_video_url(submission),
         submission=submission,
     )
 

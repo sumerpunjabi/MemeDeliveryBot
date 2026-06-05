@@ -95,6 +95,50 @@ def download_video(
     raw_path = output_dir / f"{candidate.reddit_id}-raw.mp4"
     normalized_path = output_dir / f"{candidate.reddit_id}.mp4"
 
+    if candidate.media_url:
+        LOGGER.info("Downloading and normalizing Reddit video from media URL: reddit_id=%s", candidate.reddit_id)
+        _run_command(
+            [
+                ffmpeg_bin,
+                "-y",
+                "-user_agent",
+                "Mozilla/5.0",
+                "-i",
+                candidate.media_url,
+                "-map",
+                "0:v:0",
+                "-map",
+                "0:a?",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-pix_fmt",
+                "yuv420p",
+                "-movflags",
+                "+faststart",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "128k",
+                "-ar",
+                "48000",
+                "-ac",
+                "2",
+                str(normalized_path),
+            ]
+        )
+        size_bytes = _ensure_size(normalized_path, max_bytes)
+        duration_seconds = probe_video_duration(normalized_path, ffprobe_bin=ffprobe_bin)
+        _ensure_duration(duration_seconds, max_duration_seconds)
+        video_hash = calculate_file_hash(normalized_path)
+        return ProcessedVideo(
+            path=normalized_path,
+            video_hash=video_hash,
+            size_bytes=size_bytes,
+            duration_seconds=duration_seconds,
+        )
+
     LOGGER.info("Downloading Reddit video: reddit_id=%s", candidate.reddit_id)
     _run_command(
         [

@@ -8,7 +8,7 @@ from meme_bot.reel_source import ReelCandidate
 from meme_bot.video_processing import VideoProcessingError, download_video
 
 
-def candidate():
+def candidate(media_url=None):
     return ReelCandidate(
         reddit_id="abc",
         title="title",
@@ -18,10 +18,35 @@ def candidate():
         score=100,
         duration_seconds=12,
         saved=False,
+        media_url=media_url,
     )
 
 
 class VideoProcessingTest(unittest.TestCase):
+    def test_download_video_prefers_direct_media_url_over_yt_dlp(self):
+        commands = []
+
+        def fake_run(command):
+            commands.append(command)
+            Path(command[-1]).write_bytes(b"normalized-video")
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+        with tempfile.TemporaryDirectory() as tmp, \
+            patch("meme_bot.video_processing._run_command", side_effect=fake_run), \
+            patch("meme_bot.video_processing.probe_video_duration", return_value=12.5):
+            processed = download_video(
+                candidate(media_url="https://v.redd.it/abc/HLSPlaylist.m3u8"),
+                Path(tmp),
+                max_bytes=1000,
+                max_duration_seconds=90,
+            )
+
+        self.assertEqual(processed.size_bytes, len(b"normalized-video"))
+        self.assertEqual(len(commands), 1)
+        self.assertEqual(commands[0][0], "ffmpeg")
+        self.assertIn("https://v.redd.it/abc/HLSPlaylist.m3u8", commands[0])
+        self.assertNotIn("yt-dlp", commands[0])
+
     def test_download_video_downloads_normalizes_and_hashes(self):
         commands = []
 

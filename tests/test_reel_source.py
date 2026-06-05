@@ -19,7 +19,7 @@ def submission(**overrides):
         "is_gallery": False,
         "post_hint": "hosted:video",
         "saved": False,
-        "secure_media": {"reddit_video": {"duration": 12}},
+        "secure_media": {"reddit_video": {"duration": 12, "hls_url": "https://v.redd.it/abc/HLSPlaylist.m3u8"}},
     }
     defaults.update(overrides)
     return SimpleNamespace(**defaults)
@@ -67,8 +67,15 @@ class ReelSourceTest(unittest.TestCase):
             ({"saved": True}, "saved"),
             ({"post_hint": "image"}, "post_hint_image"),
             ({"is_video": False, "post_hint": None}, "not_video"),
-            ({"secure_media": {"reddit_video": {"duration": 2}}}, "too_short"),
-            ({"secure_media": {"reddit_video": {"duration": 120}}}, "too_long"),
+            ({"secure_media": {"reddit_video": {"duration": 12}}}, "missing_video_url"),
+            (
+                {"secure_media": {"reddit_video": {"duration": 2, "hls_url": "https://v.redd.it/abc/HLSPlaylist.m3u8"}}},
+                "too_short",
+            ),
+            (
+                {"secure_media": {"reddit_video": {"duration": 120, "hls_url": "https://v.redd.it/abc/HLSPlaylist.m3u8"}}},
+                "too_long",
+            ),
         ]
         for case, reason in reject_cases:
             with self.subTest(case=case):
@@ -91,6 +98,7 @@ class ReelSourceTest(unittest.TestCase):
         self.assertEqual(candidate.subreddit, "memes")
         self.assertEqual(candidate.score, 42)
         self.assertEqual(candidate.duration_seconds, 12)
+        self.assertEqual(candidate.media_url, "https://v.redd.it/abc/HLSPlaylist.m3u8")
         self.assertEqual(candidate.reddit_permalink, "https://www.reddit.com/r/memes/comments/abc/title/")
 
     def test_fetch_reel_candidates_orders_by_score(self):
