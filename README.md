@@ -119,7 +119,7 @@ The first successful live run creates the `bot-state` branch if it does not exis
 
 ### Reel Posting
 
-`.github/workflows/post-reel.yml` runs twice daily at 15:43 and 00:43 UTC and supports manual dispatch.
+`.github/workflows/post-reel.yml` runs three times daily at 03:43, 11:43, and 19:43 UTC and supports manual dispatch.
 
 For a manual dry run, use workflow dispatch with `dry_run` set to `true`. The workflow still loads the tracker, downloads, normalizes, and hashes the selected video, but it does not publish to Instagram or append tracker state.
 

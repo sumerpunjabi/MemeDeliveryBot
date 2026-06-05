@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -20,6 +21,15 @@ from .tracker import (
 from .video_processing import ProcessedVideo, VideoProcessingError, download_video
 
 LOGGER = logging.getLogger(__name__)
+DEFAULT_REEL_HASHTAGS = (
+    "#memes",
+    "#funny",
+    "#reels",
+    "#instareels",
+    "#viralreels",
+    "#redditmemes",
+    "#dailymemes",
+)
 
 
 def setup_logging() -> None:
@@ -31,8 +41,15 @@ def setup_logging() -> None:
 
 def build_reel_caption(candidate: ReelCandidate) -> str:
     title = candidate.title.strip() or "Reddit reel"
-    attribution = f"\n\nvia r/{candidate.subreddit} on Reddit"
-    return f"{title}{attribution}"[:2200]
+    engagement_prompt = "Follow for more daily memes. Share this with someone who needs a laugh."
+    attribution = f"via r/{candidate.subreddit} on Reddit"
+    subreddit_hashtag = re.sub(r"[^A-Za-z0-9_]", "", candidate.subreddit)
+    hashtags = list(DEFAULT_REEL_HASHTAGS)
+    if subreddit_hashtag:
+        subreddit_tag = f"#{subreddit_hashtag}"
+        if subreddit_tag.lower() not in {tag.lower() for tag in hashtags}:
+            hashtags.append(subreddit_tag)
+    return "\n\n".join([title, engagement_prompt, attribution, " ".join(hashtags)])[:2200]
 
 
 def select_unposted_reel_candidate(

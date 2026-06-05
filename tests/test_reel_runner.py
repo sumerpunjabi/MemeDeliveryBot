@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from meme_bot.config import BotConfig
-from meme_bot.reel_runner import run
+from meme_bot.reel_runner import build_reel_caption, run
 from meme_bot.reel_source import ReelCandidate
 from meme_bot.video_processing import ProcessedVideo
 
@@ -82,6 +82,34 @@ def processed(path):
 
 
 class ReelRunnerTest(unittest.TestCase):
+    def test_build_reel_caption_adds_engagement_prompt_attribution_and_hashtags(self):
+        caption = build_reel_caption(candidate())
+
+        self.assertIn("title", caption)
+        self.assertIn("Follow for more daily memes.", caption)
+        self.assertIn("Share this with someone who needs a laugh.", caption)
+        self.assertIn("via r/memes on Reddit", caption)
+        self.assertIn("#memes", caption)
+        self.assertIn("#reels", caption)
+        self.assertIn("#redditmemes", caption)
+
+    def test_build_reel_caption_adds_sanitized_subreddit_hashtag(self):
+        caption = build_reel_caption(candidate())
+
+        self.assertNotIn("#memes #memes", caption)
+
+        custom = ReelCandidate(
+            reddit_id="abc",
+            title="title",
+            source_url="https://v.redd.it/abc",
+            reddit_permalink="https://www.reddit.com/r/funny-videos/comments/abc/title/",
+            subreddit="funny-videos",
+            score=100,
+            duration_seconds=12,
+            saved=False,
+        )
+        self.assertIn("#funnyvideos", build_reel_caption(custom))
+
     def test_successful_publish_appends_reel_tracker(self):
         with tempfile.TemporaryDirectory() as tmp:
             tracker_path = Path(tmp) / "state" / "reels-posted.jsonl"
