@@ -89,6 +89,31 @@ class InstagramTest(unittest.TestCase):
         self.assertEqual(len(session.requests), 2)
         sleep.assert_called_once()
 
+    def test_retries_publish_when_media_id_is_not_available_yet(self):
+        session = FakeSession(
+            [
+                FakeResponse(400, {"error": {"message": "Media ID is not available"}}),
+                FakeResponse(200, {"id": "media"}),
+            ]
+        )
+
+        with patch("meme_bot.instagram.time.sleep") as sleep:
+            media_id = InstagramClient(config(), session=session).publish_container("container")
+
+        self.assertEqual(media_id, "media")
+        self.assertEqual(len(session.requests), 2)
+        sleep.assert_called_once_with(10)
+
+    def test_does_not_retry_non_readiness_publish_error(self):
+        session = FakeSession([FakeResponse(400, {"error": {"message": "bad token"}})])
+
+        with patch("meme_bot.instagram.time.sleep") as sleep:
+            with self.assertRaises(InstagramAPIError):
+                InstagramClient(config(), session=session).publish_container("container")
+
+        self.assertEqual(len(session.requests), 1)
+        sleep.assert_not_called()
+
     def test_dry_run_skips_instagram_validation(self):
         cfg = replace(config(), access_token=None, instagram_account_id=None, dry_run=True)
         session = FakeSession([FakeResponse(200, {"id": "container"})])

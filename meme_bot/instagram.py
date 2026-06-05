@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -10,6 +11,10 @@ from .config import BotConfig
 from .retry import request_with_retries
 
 LOGGER = logging.getLogger(__name__)
+
+PUBLISH_NOT_READY_MESSAGE = "Media ID is not available"
+PUBLISH_READY_MAX_ATTEMPTS = 6
+PUBLISH_READY_DELAY_SECONDS = 10
 
 
 class InstagramAPIError(RuntimeError):
@@ -73,13 +78,27 @@ class InstagramClient:
     def publish_container(self, container_id: str) -> str:
         self.config.validate_for_instagram()
         url = f"{self.config.endpoint_base}/{self.config.instagram_account_id}/media_publish"
-        payload = self._post_json(
-            url,
-            {
-                "creation_id": container_id,
-                "access_token": self.config.access_token or "",
-            },
-        )
+        params = {
+            "creation_id": container_id,
+            "access_token": self.config.access_token or "",
+        }
+
+        for attempt in range(1, PUBLISH_READY_MAX_ATTEMPTS + 1):
+            try:
+                payload = self._post_json(url, params)
+                break
+            except InstagramAPIError as exc:
+                is_not_ready = PUBLISH_NOT_READY_MESSAGE.lower() in str(exc).lower()
+                if not is_not_ready or attempt == PUBLISH_READY_MAX_ATTEMPTS:
+                    raise
+                LOGGER.warning(
+                    "Instagram media container is not ready; retrying publish: container_id=%s attempt=%s/%s",
+                    container_id,
+                    attempt,
+                    PUBLISH_READY_MAX_ATTEMPTS,
+                )
+                time.sleep(PUBLISH_READY_DELAY_SECONDS)
+
         media_id = payload.get("id")
         if not media_id:
             raise InstagramAPIError("Instagram did not return a published media id", payload=payload)
