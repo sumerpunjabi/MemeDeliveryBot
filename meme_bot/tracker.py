@@ -28,6 +28,17 @@ class PostedRecord:
 
 
 @dataclass(frozen=True)
+class PostedReelRecord:
+    reddit_id: str
+    source_url: str
+    video_hash: str
+    title: str
+    subreddit: str
+    instagram_media_id: str
+    posted_at: str
+
+
+@dataclass(frozen=True)
 class TrackerIndex:
     reddit_ids: set[str]
     image_urls: set[str]
@@ -39,6 +50,20 @@ class TrackerIndex:
         if normalize_image_url(image_url) in self.image_urls:
             return True
         return bool(image_hash and image_hash in self.image_hashes)
+
+
+@dataclass(frozen=True)
+class ReelTrackerIndex:
+    reddit_ids: set[str]
+    source_urls: set[str]
+    video_hashes: set[str]
+
+    def contains(self, reddit_id: str, source_url: str, video_hash: str | None = None) -> bool:
+        if reddit_id in self.reddit_ids:
+            return True
+        if normalize_image_url(source_url) in self.source_urls:
+            return True
+        return bool(video_hash and video_hash in self.video_hashes)
 
 
 def utc_now_iso() -> str:
@@ -84,6 +109,37 @@ def load_records(path: Path) -> list[PostedRecord]:
     return records
 
 
+def load_reel_records(path: Path) -> list[PostedReelRecord]:
+    records: list[PostedReelRecord] = []
+    if not path.exists():
+        return records
+
+    with path.open("r", encoding="utf-8") as handle:
+        for line_number, line in enumerate(handle, start=1):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                data = json.loads(stripped)
+                records.append(
+                    PostedReelRecord(
+                        reddit_id=str(data["reddit_id"]),
+                        source_url=str(data["source_url"]),
+                        video_hash=str(data["video_hash"]),
+                        title=str(data["title"]),
+                        subreddit=str(data["subreddit"]),
+                        instagram_media_id=str(data["instagram_media_id"]),
+                        posted_at=str(data["posted_at"]),
+                    )
+                )
+            except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+                LOGGER.warning(
+                    "Ignoring malformed reel tracker line",
+                    extra={"path": str(path), "line": line_number, "error_class": type(exc).__name__},
+                )
+    return records
+
+
 def build_index(records: Iterable[PostedRecord]) -> TrackerIndex:
     reddit_ids: set[str] = set()
     image_urls: set[str] = set()
@@ -98,14 +154,41 @@ def build_index(records: Iterable[PostedRecord]) -> TrackerIndex:
     return TrackerIndex(reddit_ids=reddit_ids, image_urls=image_urls, image_hashes=image_hashes)
 
 
+def build_reel_index(records: Iterable[PostedReelRecord]) -> ReelTrackerIndex:
+    reddit_ids: set[str] = set()
+    source_urls: set[str] = set()
+    video_hashes: set[str] = set()
+
+    for record in records:
+        reddit_ids.add(record.reddit_id)
+        source_urls.add(normalize_image_url(record.source_url))
+        if record.video_hash:
+            video_hashes.add(record.video_hash)
+
+    return ReelTrackerIndex(reddit_ids=reddit_ids, source_urls=source_urls, video_hashes=video_hashes)
+
+
 def load_index(path: Path) -> TrackerIndex:
     return build_index(load_records(path))
+
+
+def load_reel_index(path: Path) -> ReelTrackerIndex:
+    return build_reel_index(load_reel_records(path))
 
 
 def append_record(path: Path, record: PostedRecord) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = asdict(record)
     payload["image_url"] = normalize_image_url(payload["image_url"])
+    with path.open("a", encoding="utf-8", newline="\n") as handle:
+        handle.write(json.dumps(payload, sort_keys=True, separators=(",", ":")))
+        handle.write("\n")
+
+
+def append_reel_record(path: Path, record: PostedReelRecord) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = asdict(record)
+    payload["source_url"] = normalize_image_url(payload["source_url"])
     with path.open("a", encoding="utf-8", newline="\n") as handle:
         handle.write(json.dumps(payload, sort_keys=True, separators=(",", ":")))
         handle.write("\n")

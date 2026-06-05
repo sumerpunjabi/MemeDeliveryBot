@@ -1,8 +1,8 @@
 # MemeDeliveryBot
 
-Image-only automation for sourcing meme images from Reddit and publishing them to Instagram with the Instagram Graph API.
+Automation for sourcing meme images and short Reddit-hosted videos from Reddit and publishing them to Instagram with the Instagram Graph API.
 
-This version intentionally does not support Instagram Reels, videos, TTS, ffmpeg processing, or a hosted database. Repost tracking is handled by an audit trail file on a dedicated Git branch.
+This version supports image posts and Reddit-sourced Instagram Reels. It does not run AI video generation, TTS, or a hosted database. Repost tracking is handled by audit trail files on a dedicated Git branch.
 
 ## How It Works
 
@@ -16,29 +16,44 @@ This version intentionally does not support Instagram Reels, videos, TTS, ffmpeg
 
 The tracker is only written after Instagram returns a published media id.
 
+Reel posting uses a parallel flow:
+
+1. Fetch top Reddit-hosted video posts from configured Reel subreddits.
+2. Filter out unsafe, unsupported, too short, and too long candidates.
+3. Download and lightly normalize the video with `yt-dlp` and `ffmpeg`.
+4. Load `state/reels-posted.jsonl` from the `bot-state` branch.
+5. Skip any candidate already seen by Reddit id, normalized source URL, or video SHA-256 hash.
+6. Publish the local MP4 through Instagram's Reels resumable upload flow.
+7. Append the successful Reel to `state/reels-posted.jsonl`.
+
 ## Project Structure
 
 ```text
 meme_bot/
   config.py          Environment configuration and validation
-  instagram.py       Image-only Instagram Graph API client
+  instagram.py       Instagram Graph API client for images and Reels
+  reel_runner.py     Reels orchestration
+  reel_source.py     Reddit video candidate fetching and filtering
   reddit_source.py   Reddit candidate fetching and filtering
   retry.py           HTTP retry and Retry-After handling
   runner.py          Main orchestration
   token_manager.py   Instagram token expiry check and refresh
   tracker.py         JSONL audit trail loading, duplicate checks, and hashing
+  video_processing.py yt-dlp/ffmpeg download, normalization, and hashing
 scripts/
   refresh_instagram_token.py
 .github/workflows/
   post-meme.yml
+  post-reel.yml
   refresh-instagram-token.yml
-main.py              Thin entrypoint wrapper
+main.py              Thin image entrypoint wrapper
 publish.py           Thin image-publishing compatibility wrapper
 ```
 
 ## Requirements
 
 - Python 3.10 or newer.
+- `ffmpeg` and `ffprobe` for Reel posting.
 - Reddit API credentials for a script app.
 - Instagram Business or Creator account connected for Instagram Graph API publishing.
 - GitHub Actions secrets for scheduled automation.
@@ -82,6 +97,15 @@ Optional GitHub Actions variables or local environment variables:
 - `DRY_RUN`: when true, selects and hashes a candidate but does not publish or write tracker state
 - `USE_REDDIT_SAVED_GUARD`: skip Reddit submissions already saved by the authenticated Reddit account
 - `MARK_REDDIT_SAVED`: save the Reddit submission after Instagram publish succeeds
+- `REEL_SUBREDDITS`: comma-separated list, defaults to `SUBREDDITS`, then `memes`
+- `REEL_POST_TIME_FILTER`: Reddit listing period for Reels, default `day`
+- `REEL_POST_LIMIT`: posts scanned per Reel subreddit, default `100`
+- `REEL_MIN_SCORE`: minimum Reddit score for Reels, defaults to `MIN_SCORE`
+- `REEL_TRACKER_PATH`: default `state/reels-posted.jsonl`
+- `REEL_MAX_DURATION_SECONDS`: default `90`
+- `REEL_MAX_BYTES`: default `100000000`
+- `REEL_SHARE_TO_FEED`: default `true`
+- `REELS_DRY_RUN`: when true, selects/downloads/hashes a Reel candidate but does not publish or write tracker state
 
 ## GitHub Actions
 
@@ -92,6 +116,12 @@ Optional GitHub Actions variables or local environment variables:
 For a manual dry run, use workflow dispatch with `dry_run` set to `true`. The workflow still loads the tracker and hashes the selected image, but it does not publish to Instagram or append tracker state.
 
 The first successful live run creates the `bot-state` branch if it does not exist.
+
+### Reel Posting
+
+`.github/workflows/post-reel.yml` runs twice daily at 15:43 and 00:43 UTC and supports manual dispatch.
+
+For a manual dry run, use workflow dispatch with `dry_run` set to `true`. The workflow still loads the tracker, downloads, normalizes, and hashes the selected video, but it does not publish to Instagram or append tracker state.
 
 ### Token Refresh
 
@@ -118,6 +148,19 @@ Live run:
 python main.py
 ```
 
+Reel dry run:
+
+```bash
+$env:REELS_DRY_RUN="true"
+python -m meme_bot.reel_runner
+```
+
+Live Reel run:
+
+```bash
+python -m meme_bot.reel_runner
+```
+
 Refresh token locally:
 
 ```bash
@@ -133,6 +176,12 @@ Each successful post appends one JSON object to `state/posted.jsonl`:
 ```
 
 Malformed lines are ignored with a warning so one bad audit line does not stop posting.
+
+Each successful Reel appends one JSON object to `state/reels-posted.jsonl`:
+
+```json
+{"reddit_id":"abc123","source_url":"https://v.redd.it/example","video_hash":"...","title":"Example","subreddit":"memes","instagram_media_id":"178...","posted_at":"2026-06-02T00:00:00Z"}
+```
 
 ## Recovery
 

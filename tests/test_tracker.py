@@ -6,10 +6,14 @@ from pathlib import Path
 
 from meme_bot.tracker import (
     PostedRecord,
+    PostedReelRecord,
     append_record,
+    append_reel_record,
     build_index,
+    build_reel_index,
     calculate_image_hash,
     load_records,
+    load_reel_records,
     normalize_image_url,
 )
 
@@ -112,6 +116,28 @@ class TrackerTest(unittest.TestCase):
         self.assertEqual(digest, hashlib.sha256(body).hexdigest())
         self.assertEqual(session.last_request["headers"]["User-Agent"], "test-agent")
         self.assertTrue(response.closed)
+
+    def test_append_reel_record_and_index_duplicate_checks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "state" / "reels-posted.jsonl"
+            append_reel_record(
+                path,
+                PostedReelRecord(
+                    reddit_id="abc",
+                    source_url="https://V.REDD.IT/a?width=640",
+                    video_hash="hash",
+                    title="title",
+                    subreddit="memes",
+                    instagram_media_id="ig",
+                    posted_at="2026-06-02T00:00:00Z",
+                ),
+            )
+            records = load_reel_records(path)
+            index = build_reel_index(records)
+
+        self.assertTrue(index.contains("abc", "https://v.redd.it/other"))
+        self.assertTrue(index.contains("other", "https://v.redd.it/a"))
+        self.assertTrue(index.contains("other", "https://v.redd.it/other", "hash"))
 
 
 if __name__ == "__main__":

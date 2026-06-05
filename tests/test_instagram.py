@@ -1,5 +1,7 @@
 import unittest
 from dataclasses import replace
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from meme_bot.config import BotConfig
@@ -122,6 +124,78 @@ class InstagramTest(unittest.TestCase):
             InstagramClient(cfg, session=session).create_image_container("https://i.redd.it/a.jpg", "caption"),
             "container",
         )
+
+    def test_create_reel_container_uses_resumable_upload(self):
+        session = FakeSession([FakeResponse(200, {"id": "container", "uri": "https://upload.example/container"})])
+
+        container_id, upload_uri = InstagramClient(config(), session=session).create_reel_container(
+            "caption",
+            share_to_feed=False,
+        )
+
+        self.assertEqual(container_id, "container")
+        self.assertEqual(upload_uri, "https://upload.example/container")
+        params = session.requests[0]["params"]
+        self.assertEqual(params["media_type"], "REELS")
+        self.assertEqual(params["upload_type"], "resumable")
+        self.assertEqual(params["share_to_feed"], "false")
+
+    def test_upload_reel_video_posts_binary_to_upload_uri(self):
+        with TemporaryDirectory() as tmp:
+            video_path = Path(tmp) / "reel.mp4"
+            video_path.write_bytes(b"video")
+            session = FakeSession([FakeResponse(200, {"success": True})])
+
+            InstagramClient(config(), session=session).upload_reel_video(
+                "https://upload.example/container",
+                video_path,
+            )
+
+        request = session.requests[0]
+        self.assertEqual(request["url"], "https://upload.example/container")
+        self.assertEqual(request["headers"]["Authorization"], "OAuth token")
+        self.assertEqual(request["headers"]["offset"], "0")
+        self.assertEqual(request["headers"]["file_size"], "5")
+        self.assertEqual(request["data"], b"video")
+
+    def test_wait_for_reel_container_ready_polls_until_finished(self):
+        session = FakeSession(
+            [
+                FakeResponse(200, {"status_code": "IN_PROGRESS"}),
+                FakeResponse(200, {"status_code": "FINISHED"}),
+            ]
+        )
+
+        with patch("meme_bot.instagram.time.sleep") as sleep:
+            InstagramClient(config(), session=session).wait_for_reel_container_ready("container")
+
+        self.assertEqual(len(session.requests), 2)
+        sleep.assert_called_once_with(10)
+
+    def test_wait_for_reel_container_ready_raises_on_error(self):
+        session = FakeSession([FakeResponse(200, {"status_code": "ERROR"})])
+
+        with self.assertRaises(InstagramAPIError):
+            InstagramClient(config(), session=session).wait_for_reel_container_ready("container")
+
+    def test_post_reel_runs_full_publish_flow(self):
+        with TemporaryDirectory() as tmp:
+            video_path = Path(tmp) / "reel.mp4"
+            video_path.write_bytes(b"video")
+            session = FakeSession(
+                [
+                    FakeResponse(200, {"id": "container", "uri": "https://upload.example/container"}),
+                    FakeResponse(200, {"success": True}),
+                    FakeResponse(200, {"status_code": "FINISHED"}),
+                    FakeResponse(200, {"id": "media"}),
+                ]
+            )
+
+            media_id = InstagramClient(config(), session=session).post_reel(video_path, "caption")
+
+        self.assertEqual(media_id, "media")
+        self.assertEqual(session.requests[0]["params"]["media_type"], "REELS")
+        self.assertEqual(session.requests[3]["params"]["creation_id"], "container")
 
 
 if __name__ == "__main__":

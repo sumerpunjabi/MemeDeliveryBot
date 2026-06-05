@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import requests
@@ -15,6 +16,10 @@ LOGGER = logging.getLogger(__name__)
 PUBLISH_NOT_READY_MESSAGE = "Media ID is not available"
 PUBLISH_READY_MAX_ATTEMPTS = 6
 PUBLISH_READY_DELAY_SECONDS = 10
+REEL_READY_STATUSES = {"FINISHED"}
+REEL_FAILED_STATUSES = {"ERROR", "EXPIRED"}
+REEL_STATUS_MAX_ATTEMPTS = 30
+REEL_STATUS_DELAY_SECONDS = 10
 
 
 class InstagramAPIError(RuntimeError):
@@ -32,16 +37,26 @@ class InstagramClient:
     def _session(self) -> requests.Session:
         return self.session or requests.Session()
 
-    def _post_json(self, url: str, params: dict[str, str]) -> dict[str, Any]:
+    def _request_json(
+        self,
+        method: str,
+        url: str,
+        *,
+        params: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+        data: Any = None,
+    ) -> dict[str, Any]:
         session = self._session()
         response = request_with_retries(
             session,
-            "POST",
+            method,
             url,
             timeout=self.config.request_timeout_seconds,
             max_attempts=self.config.max_retry_attempts,
             base_delay_seconds=self.config.retry_base_seconds,
             params=params,
+            headers=headers,
+            data=data,
         )
         try:
             payload = response.json()
@@ -57,6 +72,12 @@ class InstagramClient:
             message = error.get("message", "Instagram API error") if isinstance(error, dict) else "Instagram API error"
             raise InstagramAPIError(message, status_code=response.status_code, payload=payload)
         return payload
+
+    def _post_json(self, url: str, params: dict[str, Any]) -> dict[str, Any]:
+        return self._request_json("POST", url, params=params)
+
+    def _get_json(self, url: str, params: dict[str, Any]) -> dict[str, Any]:
+        return self._request_json("GET", url, params=params)
 
     def create_image_container(self, image_url: str, caption: str) -> str:
         self.config.validate_for_instagram()
@@ -107,4 +128,74 @@ class InstagramClient:
 
     def post_image(self, image_url: str, caption: str) -> str:
         container_id = self.create_image_container(image_url, caption)
+        return self.publish_container(container_id)
+
+    def create_reel_container(self, caption: str, *, share_to_feed: bool = True) -> tuple[str, str]:
+        self.config.validate_for_instagram()
+        url = f"{self.config.endpoint_base}/{self.config.instagram_account_id}/media"
+        payload = self._post_json(
+            url,
+            {
+                "media_type": "REELS",
+                "upload_type": "resumable",
+                "caption": caption[:2200],
+                "share_to_feed": str(share_to_feed).lower(),
+                "access_token": self.config.access_token or "",
+            },
+        )
+        container_id = payload.get("id")
+        upload_uri = payload.get("uri")
+        if not container_id or not upload_uri:
+            raise InstagramAPIError("Instagram did not return a reel upload container", payload=payload)
+        LOGGER.info("Created Instagram reel container", extra={"container_id": container_id})
+        return str(container_id), str(upload_uri)
+
+    def upload_reel_video(self, upload_uri: str, video_path: Path) -> None:
+        self.config.validate_for_instagram()
+        file_size = video_path.stat().st_size
+        headers = {
+            "Authorization": f"OAuth {self.config.access_token or ''}",
+            "offset": "0",
+            "file_size": str(file_size),
+        }
+        payload = self._request_json("POST", upload_uri, headers=headers, data=video_path.read_bytes())
+        if payload.get("success") is not True and payload.get("message") != "Upload successful.":
+            raise InstagramAPIError("Instagram reel upload did not succeed", payload=payload)
+        LOGGER.info("Uploaded Instagram reel video", extra={"file_size": file_size})
+
+    def get_container_status(self, container_id: str) -> dict[str, Any]:
+        self.config.validate_for_instagram()
+        url = f"{self.config.endpoint_base}/{container_id}"
+        return self._get_json(
+            url,
+            {
+                "fields": "status_code,status",
+                "access_token": self.config.access_token or "",
+            },
+        )
+
+    def wait_for_reel_container_ready(self, container_id: str) -> None:
+        for attempt in range(1, REEL_STATUS_MAX_ATTEMPTS + 1):
+            payload = self.get_container_status(container_id)
+            status_code = str(payload.get("status_code", "")).upper()
+            if status_code in REEL_READY_STATUSES:
+                LOGGER.info("Instagram reel container is ready", extra={"container_id": container_id})
+                return
+            if status_code in REEL_FAILED_STATUSES:
+                raise InstagramAPIError("Instagram reel container failed processing", payload=payload)
+            if attempt == REEL_STATUS_MAX_ATTEMPTS:
+                raise InstagramAPIError("Instagram reel container was not ready before timeout", payload=payload)
+            LOGGER.info(
+                "Waiting for Instagram reel container: container_id=%s status=%s attempt=%s/%s",
+                container_id,
+                status_code or "UNKNOWN",
+                attempt,
+                REEL_STATUS_MAX_ATTEMPTS,
+            )
+            time.sleep(REEL_STATUS_DELAY_SECONDS)
+
+    def post_reel(self, video_path: Path, caption: str, *, share_to_feed: bool = True) -> str:
+        container_id, upload_uri = self.create_reel_container(caption, share_to_feed=share_to_feed)
+        self.upload_reel_video(upload_uri, video_path)
+        self.wait_for_reel_container_ready(container_id)
         return self.publish_container(container_id)
