@@ -231,6 +231,22 @@ Refresh token locally:
 python scripts/refresh_instagram_token.py
 ```
 
+Dry-run Facebook Page cleanup for Page posts created before June 2026:
+
+```bash
+$env:FACEBOOK_PAGE_ID="your-page-id"
+$env:FACEBOOK_PAGE_ACCESS_TOKEN="your-page-access-token"
+python scripts/cleanup_facebook_page_history.py --before 2026-06-01 --resource posts
+```
+
+Live cleanup is intentionally capped and slow by default to reduce request pressure:
+
+```bash
+python scripts/cleanup_facebook_page_history.py --before 2026-06-01 --resource posts --execute --confirm-permanent-delete DELETE_OLD_PAGE_CONTENT
+```
+
+Use `--resource all` to include uploaded Page photos, `--max-deletes-per-run` to adjust the per-run cap, and rerun later instead of using aggressive delays if Meta returns rate-limit errors.
+
 ## Tracker Format
 
 Each successful post appends one JSON object to `state/posted.jsonl`:
