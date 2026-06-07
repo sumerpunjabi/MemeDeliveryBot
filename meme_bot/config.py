@@ -67,6 +67,17 @@ class BotConfig:
     reel_max_bytes: int = 100_000_000
     reel_share_to_feed: bool = True
     reels_dry_run: bool = False
+    performance_store_path: Path = Path("state/performance.json")
+    run_history_path: Path = Path("state/run-history.jsonl")
+    optimization_config_path: Path = Path("state/optimized-config.json")
+    optimization_changelog_path: Path = Path("state/optimization-changelog.jsonl")
+    image_listing_modes: list[str] = field(default_factory=lambda: ["hot", "rising", "new"])
+    reel_listing_modes: list[str] = field(default_factory=lambda: ["hot", "rising", "new"])
+    top_comments_limit: int = 5
+    reel_min_width: int = 240
+    reel_min_height: int = 240
+    reel_min_aspect_ratio: float = 0.35
+    reel_max_aspect_ratio: float = 3.0
 
     @classmethod
     def from_env(cls) -> "BotConfig":
@@ -108,6 +119,19 @@ class BotConfig:
             reel_max_bytes=_get_int("REEL_MAX_BYTES", 100_000_000),
             reel_share_to_feed=_get_bool("REEL_SHARE_TO_FEED", False),
             reels_dry_run=_get_bool("REELS_DRY_RUN", dry_run),
+            performance_store_path=Path(os.getenv("PERFORMANCE_STORE_PATH", "state/performance.json")),
+            run_history_path=Path(os.getenv("RUN_HISTORY_PATH", "state/run-history.jsonl")),
+            optimization_config_path=Path(os.getenv("OPTIMIZED_CONFIG_PATH", "state/optimized-config.json")),
+            optimization_changelog_path=Path(
+                os.getenv("OPTIMIZATION_CHANGELOG_PATH", "state/optimization-changelog.jsonl")
+            ),
+            image_listing_modes=_split_csv(os.getenv("IMAGE_LISTING_MODES"), ["hot", "rising", "new"]),
+            reel_listing_modes=_split_csv(os.getenv("REEL_LISTING_MODES"), ["hot", "rising", "new"]),
+            top_comments_limit=_get_int("TOP_COMMENTS_LIMIT", 5),
+            reel_min_width=_get_int("REEL_MIN_WIDTH", 240),
+            reel_min_height=_get_int("REEL_MIN_HEIGHT", 240),
+            reel_min_aspect_ratio=_get_float("REEL_MIN_ASPECT_RATIO", 0.35),
+            reel_max_aspect_ratio=_get_float("REEL_MAX_ASPECT_RATIO", 3.0),
         )
 
     @property

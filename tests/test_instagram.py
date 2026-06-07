@@ -212,6 +212,22 @@ class InstagramTest(unittest.TestCase):
         self.assertEqual(session.requests[3]["params"]["creation_id"], "container")
         self.assertEqual(session.requests[4]["params"]["fields"], "id,media_type,media_product_type,permalink")
 
+    def test_get_media_insights_falls_back_to_individual_metrics(self):
+        session = FakeSession(
+            [
+                FakeResponse(400, {"error": {"message": "bad metric"}}),
+                FakeResponse(200, {"data": [{"name": "likes", "values": [{"value": 10}]}]}),
+                FakeResponse(400, {"error": {"message": "unsupported"}}),
+            ]
+        )
+
+        insights = InstagramClient(config(), session=session).get_media_insights("media", ["likes", "shares"])
+
+        self.assertEqual(insights.metrics["likes"], 10)
+        self.assertEqual(insights.unavailable_metrics, ["shares"])
+        self.assertEqual(session.requests[0]["params"]["metric"], "likes,shares")
+        self.assertEqual(session.requests[1]["params"]["metric"], "likes")
+
 
 if __name__ == "__main__":
     unittest.main()

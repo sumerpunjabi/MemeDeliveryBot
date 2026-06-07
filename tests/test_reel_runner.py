@@ -43,6 +43,10 @@ def config(path, dry_run=False):
         reel_max_bytes=1000,
         reel_share_to_feed=True,
         reels_dry_run=dry_run,
+        performance_store_path=path.parent / "performance.json",
+        run_history_path=path.parent / "run-history.jsonl",
+        optimization_config_path=path.parent / "optimized-config.json",
+        optimization_changelog_path=path.parent / "optimization-changelog.jsonl",
     )
 
 
@@ -123,10 +127,13 @@ class ReelRunnerTest(unittest.TestCase):
                 self.assertEqual(run(cfg), 0)
 
             content = tracker_path.read_text(encoding="utf-8")
+            performance = (tracker_path.parent / "performance.json").read_text(encoding="utf-8")
 
         self.assertIn('"reddit_id":"abc"', content)
         self.assertIn('"instagram_media_id":"ig-reel"', content)
         self.assertIn('"source_url":"https://v.redd.it/abc"', content)
+        self.assertIn('"media_type":"reel"', performance)
+        self.assertIn('"caption_template_id"', performance)
 
     def test_publish_failure_does_not_append_reel_tracker(self):
         with tempfile.TemporaryDirectory() as tmp:

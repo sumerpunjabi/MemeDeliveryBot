@@ -18,7 +18,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: meme-bot-reel
+  group: meme-bot-state
   cancel-in-progress: false
 
 jobs:
@@ -49,6 +49,10 @@ jobs:
         run: |
           mkdir -p bot-state/state
           touch bot-state/state/reels-posted.jsonl
+          touch bot-state/state/run-history.jsonl
+          if [ ! -f bot-state/state/performance.json ]; then
+            printf '{"version":1,"meta":{},"posts":[]}\n' > bot-state/state/performance.json
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -75,12 +79,23 @@ jobs:
           REDDIT_USERNAME: ${{ secrets.REDDIT_USERNAME }}
           REDDIT_PASSWORD: ${{ secrets.REDDIT_PASSWORD }}
           REEL_SUBREDDITS: ${{ vars.REEL_SUBREDDITS || vars.SUBREDDITS || 'memes' }}
+          REEL_LISTING_MODES: ${{ vars.REEL_LISTING_MODES || 'hot,rising,new' }}
           REEL_POST_TIME_FILTER: ${{ vars.REEL_POST_TIME_FILTER || 'day' }}
           REEL_POST_LIMIT: ${{ vars.REEL_POST_LIMIT || '100' }}
           REEL_MIN_SCORE: ${{ vars.REEL_MIN_SCORE || vars.MIN_SCORE || '0' }}
           REEL_MAX_DURATION_SECONDS: ${{ vars.REEL_MAX_DURATION_SECONDS || '90' }}
+          REEL_SOFT_MAX_DURATION_SECONDS: ${{ vars.REEL_SOFT_MAX_DURATION_SECONDS || '45' }}
+          REEL_HARD_MAX_DURATION_SECONDS: ${{ vars.REEL_HARD_MAX_DURATION_SECONDS || vars.REEL_MAX_DURATION_SECONDS || '90' }}
           REEL_MAX_BYTES: ${{ vars.REEL_MAX_BYTES || '100000000' }}
+          REEL_MIN_WIDTH: ${{ vars.REEL_MIN_WIDTH || '240' }}
+          REEL_MIN_HEIGHT: ${{ vars.REEL_MIN_HEIGHT || '240' }}
+          REEL_MIN_ASPECT_RATIO: ${{ vars.REEL_MIN_ASPECT_RATIO || '0.35' }}
+          REEL_MAX_ASPECT_RATIO: ${{ vars.REEL_MAX_ASPECT_RATIO || '3.0' }}
           REEL_SHARE_TO_FEED: ${{ vars.REEL_SHARE_TO_FEED || 'false' }}
+          TOP_COMMENTS_LIMIT: ${{ vars.TOP_COMMENTS_LIMIT || '5' }}
+          SCORING_MINIMUM_TOTAL_SCORE: ${{ vars.SCORING_MINIMUM_TOTAL_SCORE || '' }}
+          SCORING_PREFERRED_AGE_HOURS: ${{ vars.SCORING_PREFERRED_AGE_HOURS || '' }}
+          SCORING_MAX_AGE_HOURS: ${{ vars.SCORING_MAX_AGE_HOURS || '' }}
           GRAPH_VERSION: ${{ vars.GRAPH_VERSION || 'v22.0' }}
           REQUEST_TIMEOUT_SECONDS: ${{ vars.REQUEST_TIMEOUT_SECONDS || '20' }}
           MAX_RETRY_ATTEMPTS: ${{ vars.MAX_RETRY_ATTEMPTS || '3' }}
@@ -89,28 +104,27 @@ jobs:
           MARK_REDDIT_SAVED: ${{ vars.MARK_REDDIT_SAVED || 'false' }}
           REELS_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || vars.REELS_DRY_RUN || 'false' }}
           REEL_TRACKER_PATH: ../bot-state/state/reels-posted.jsonl
+          PERFORMANCE_STORE_PATH: ../bot-state/state/performance.json
+          RUN_HISTORY_PATH: ../bot-state/state/run-history.jsonl
+          OPTIMIZED_CONFIG_PATH: ../bot-state/state/optimized-config.json
         run: python -m meme_bot.reel_runner
 
-      - name: Commit tracker update
+      - name: Commit state update
         env:
           GITHUB_TOKEN: ${{ github.token }}
           REELS_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || vars.REELS_DRY_RUN || 'false' }}
         run: |
           if [ "${REELS_DRY_RUN}" = "true" ]; then
-            echo "Reels dry run enabled; skipping tracker commit."
+            echo "Reels dry run enabled; skipping state commit."
             exit 0
           fi
           cd bot-state
-          if [ ! -s state/reels-posted.jsonl ]; then
-            echo "Reel tracker is empty; nothing to commit."
-            exit 0
-          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add state/reels-posted.jsonl
+          git add state/reels-posted.jsonl state/performance.json state/run-history.jsonl
           if git diff --cached --quiet; then
-            echo "No reel tracker changes to commit."
+            echo "No state changes to commit."
             exit 0
           fi
-          git commit -m "Track posted reel"
+          git commit -m "Update reel bot state"
           git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:bot-state

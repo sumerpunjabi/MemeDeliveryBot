@@ -25,6 +25,10 @@ def config(path, dry_run=False):
         post_limit=100,
         min_score=0,
         tracker_path=path,
+        performance_store_path=path.parent / "performance.json",
+        run_history_path=path.parent / "run-history.jsonl",
+        optimization_config_path=path.parent / "optimized-config.json",
+        optimization_changelog_path=path.parent / "optimization-changelog.jsonl",
         graph_domain="https://graph.facebook.com",
         graph_version="v22.0",
         request_timeout_seconds=1,
@@ -73,9 +77,12 @@ class RunnerTest(unittest.TestCase):
                 self.assertEqual(run(cfg), 0)
 
             content = tracker_path.read_text(encoding="utf-8")
+            performance = (tracker_path.parent / "performance.json").read_text(encoding="utf-8")
 
         self.assertIn('"reddit_id":"abc"', content)
         self.assertIn('"instagram_media_id":"ig-media"', content)
+        self.assertIn('"caption_template_id"', performance)
+        self.assertIn('"generated_score"', performance)
 
     def test_publish_failure_does_not_append_tracker(self):
         with tempfile.TemporaryDirectory() as tmp:

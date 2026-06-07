@@ -1,18 +1,9 @@
-name: Post Meme
+name: Collect Instagram Analytics
 
 on:
   schedule:
-    - cron: "17 14,23 * * *"
+    - cron: "26 15 * * *"
   workflow_dispatch:
-    inputs:
-      dry_run:
-        description: "Select and hash a candidate without publishing or updating bot-state"
-        required: true
-        default: "true"
-        type: choice
-        options:
-          - "true"
-          - "false"
 
 permissions:
   contents: write
@@ -22,7 +13,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  post:
+  collect:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout application code
@@ -30,7 +21,7 @@ jobs:
         with:
           path: app
 
-      - name: Prepare tracker branch
+      - name: Prepare state branch
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
@@ -45,11 +36,9 @@ jobs:
             git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           fi
 
-      - name: Ensure tracker file exists
+      - name: Ensure performance store exists
         run: |
           mkdir -p bot-state/state
-          touch bot-state/state/posted.jsonl
-          touch bot-state/state/run-history.jsonl
           if [ ! -f bot-state/state/performance.json ]; then
             printf '{"version":1,"meta":{},"posts":[]}\n' > bot-state/state/performance.json
           fi
@@ -63,54 +52,33 @@ jobs:
         working-directory: app
         run: pip install -r requirements.txt
 
-      - name: Run meme bot
+      - name: Collect analytics
         working-directory: app
         env:
           ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
           INSTAGRAM_ACCOUNT_ID: ${{ secrets.INSTAGRAM_ACCOUNT_ID }}
-          REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
-          REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
-          REDDIT_USER_AGENT: ${{ secrets.REDDIT_USER_AGENT }}
-          REDDIT_USERNAME: ${{ secrets.REDDIT_USERNAME }}
-          REDDIT_PASSWORD: ${{ secrets.REDDIT_PASSWORD }}
-          SUBREDDITS: ${{ vars.SUBREDDITS || 'memes' }}
-          IMAGE_LISTING_MODES: ${{ vars.IMAGE_LISTING_MODES || 'hot,rising,new' }}
-          POST_TIME_FILTER: ${{ vars.POST_TIME_FILTER || 'day' }}
-          POST_LIMIT: ${{ vars.POST_LIMIT || '100' }}
-          MIN_SCORE: ${{ vars.MIN_SCORE || '0' }}
-          TOP_COMMENTS_LIMIT: ${{ vars.TOP_COMMENTS_LIMIT || '5' }}
-          SCORING_MINIMUM_TOTAL_SCORE: ${{ vars.SCORING_MINIMUM_TOTAL_SCORE || '' }}
-          SCORING_PREFERRED_AGE_HOURS: ${{ vars.SCORING_PREFERRED_AGE_HOURS || '' }}
-          SCORING_MAX_AGE_HOURS: ${{ vars.SCORING_MAX_AGE_HOURS || '' }}
           GRAPH_VERSION: ${{ vars.GRAPH_VERSION || 'v22.0' }}
           REQUEST_TIMEOUT_SECONDS: ${{ vars.REQUEST_TIMEOUT_SECONDS || '20' }}
           MAX_RETRY_ATTEMPTS: ${{ vars.MAX_RETRY_ATTEMPTS || '3' }}
           RETRY_BASE_SECONDS: ${{ vars.RETRY_BASE_SECONDS || '2' }}
-          USE_REDDIT_SAVED_GUARD: ${{ vars.USE_REDDIT_SAVED_GUARD || 'false' }}
-          MARK_REDDIT_SAVED: ${{ vars.MARK_REDDIT_SAVED || 'false' }}
-          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || vars.POSTING_DRY_RUN || 'false' }}
-          TRACKER_PATH: ../bot-state/state/posted.jsonl
+          INSTAGRAM_INSIGHT_METRICS: ${{ vars.INSTAGRAM_INSIGHT_METRICS || 'likes,comments,saved,shares,reach,views,plays,total_interactions,follows' }}
+          ANALYTICS_LOOKBACK_DAYS: ${{ vars.ANALYTICS_LOOKBACK_DAYS || '14' }}
+          ANALYTICS_MAX_MEDIA_PER_RUN: ${{ vars.ANALYTICS_MAX_MEDIA_PER_RUN || '50' }}
           PERFORMANCE_STORE_PATH: ../bot-state/state/performance.json
-          RUN_HISTORY_PATH: ../bot-state/state/run-history.jsonl
           OPTIMIZED_CONFIG_PATH: ../bot-state/state/optimized-config.json
-        run: python -m meme_bot.runner
+        run: python -m meme_bot.analytics_runner
 
-      - name: Commit state update
+      - name: Commit analytics update
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || vars.POSTING_DRY_RUN || 'false' }}
         run: |
-          if [ "${DRY_RUN}" = "true" ]; then
-            echo "Dry run enabled; skipping state commit."
-            exit 0
-          fi
           cd bot-state
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add state/posted.jsonl state/performance.json state/run-history.jsonl
+          git add state/performance.json
           if git diff --cached --quiet; then
-            echo "No state changes to commit."
+            echo "No analytics changes to commit."
             exit 0
           fi
-          git commit -m "Update meme bot state"
+          git commit -m "Update Instagram analytics"
           git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:bot-state

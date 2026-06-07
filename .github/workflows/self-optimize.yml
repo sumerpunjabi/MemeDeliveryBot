@@ -1,0 +1,86 @@
+name: Self Optimize
+
+on:
+  schedule:
+    - cron: "52 16 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: meme-bot-state
+  cancel-in-progress: false
+
+jobs:
+  optimize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout application code
+        uses: actions/checkout@v4
+        with:
+          path: app
+
+      - name: Prepare state branch
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          rm -rf bot-state
+          if git ls-remote --exit-code --heads "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" bot-state >/dev/null 2>&1; then
+            git clone --branch bot-state --single-branch "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" bot-state
+          else
+            mkdir bot-state
+            cd bot-state
+            git init
+            git checkout -b bot-state
+            git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          fi
+
+      - name: Ensure state files exist
+        run: |
+          mkdir -p bot-state/state
+          touch bot-state/state/run-history.jsonl
+          touch bot-state/state/optimization-changelog.jsonl
+          if [ ! -f bot-state/state/performance.json ]; then
+            printf '{"version":1,"meta":{},"posts":[]}\n' > bot-state/state/performance.json
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        working-directory: app
+        run: pip install -r requirements.txt
+
+      - name: Optimize config
+        working-directory: app
+        env:
+          PERFORMANCE_STORE_PATH: ../bot-state/state/performance.json
+          RUN_HISTORY_PATH: ../bot-state/state/run-history.jsonl
+          OPTIMIZED_CONFIG_PATH: ../bot-state/state/optimized-config.json
+          OPTIMIZATION_CHANGELOG_PATH: ../bot-state/state/optimization-changelog.jsonl
+          SELF_OPTIMIZATION_ENABLED: ${{ vars.SELF_OPTIMIZATION_ENABLED || 'true' }}
+          OPTIMIZER_MIN_TOTAL_SAMPLES: ${{ vars.OPTIMIZER_MIN_TOTAL_SAMPLES || '20' }}
+          OPTIMIZER_MIN_GROUP_SAMPLES: ${{ vars.OPTIMIZER_MIN_GROUP_SAMPLES || '5' }}
+          OPTIMIZER_MAX_WEIGHT_CHANGE: ${{ vars.OPTIMIZER_MAX_WEIGHT_CHANGE || '0.15' }}
+        run: python -m meme_bot.optimizer
+
+      - name: Commit optimization update
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          cd bot-state
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state/optimization-changelog.jsonl
+          if [ -f state/optimized-config.json ]; then
+            git add state/optimized-config.json
+          fi
+          if git diff --cached --quiet; then
+            echo "No optimization changes to commit."
+            exit 0
+          fi
+          git commit -m "Update optimized bot config"
+          git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:bot-state

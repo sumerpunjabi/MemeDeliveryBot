@@ -30,6 +30,12 @@ class InstagramAPIError(RuntimeError):
 
 
 @dataclass(frozen=True)
+class InstagramInsights:
+    metrics: dict[str, float]
+    unavailable_metrics: list[str]
+
+
+@dataclass(frozen=True)
 class InstagramClient:
     config: BotConfig
     session: requests.Session | None = None
@@ -184,6 +190,73 @@ class InstagramClient:
                 "access_token": self.config.access_token or "",
             },
         )
+
+    def _parse_insights(self, payload: dict[str, Any]) -> dict[str, float]:
+        parsed: dict[str, float] = {}
+        data = payload.get("data")
+        if not isinstance(data, list):
+            return parsed
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            name = item.get("name")
+            values = item.get("values")
+            if not name or not isinstance(values, list) or not values:
+                continue
+            value = values[-1].get("value") if isinstance(values[-1], dict) else None
+            if isinstance(value, (int, float)):
+                parsed[str(name)] = float(value)
+        return parsed
+
+    def get_media_insights(self, media_id: str, metrics: list[str]) -> InstagramInsights:
+        self.config.validate_for_instagram()
+        clean_metrics = [metric.strip() for metric in metrics if metric.strip()]
+        if not clean_metrics:
+            return InstagramInsights(metrics={}, unavailable_metrics=[])
+
+        url = f"{self.config.endpoint_base}/{media_id}/insights"
+        params = {
+            "metric": ",".join(clean_metrics),
+            "access_token": self.config.access_token or "",
+        }
+        try:
+            payload = self._get_json(url, params)
+            parsed = self._parse_insights(payload)
+            unavailable = [metric for metric in clean_metrics if metric not in parsed]
+            return InstagramInsights(metrics=parsed, unavailable_metrics=unavailable)
+        except InstagramAPIError as exc:
+            LOGGER.warning(
+                "Bulk Instagram insights request failed; retrying metrics individually: media_id=%s error_class=%s error=%s",
+                media_id,
+                type(exc).__name__,
+                exc,
+            )
+
+        parsed: dict[str, float] = {}
+        unavailable: list[str] = []
+        for metric in clean_metrics:
+            try:
+                payload = self._get_json(
+                    url,
+                    {
+                        "metric": metric,
+                        "access_token": self.config.access_token or "",
+                    },
+                )
+                metric_values = self._parse_insights(payload)
+                if metric in metric_values:
+                    parsed[metric] = metric_values[metric]
+                else:
+                    unavailable.append(metric)
+            except InstagramAPIError as exc:
+                unavailable.append(metric)
+                LOGGER.info(
+                    "Instagram insight metric unavailable: media_id=%s metric=%s error_class=%s",
+                    media_id,
+                    metric,
+                    type(exc).__name__,
+                )
+        return InstagramInsights(metrics=parsed, unavailable_metrics=sorted(set(unavailable)))
 
     def verify_published_reel(self, media_id: str) -> None:
         payload = self.get_media_details(media_id)
