@@ -174,6 +174,142 @@ class FacebookPageCleanupClient:
         )
 
 
+def resolve_page_id(
+    *,
+    access_token: str,
+    instagram_account_id: str | None = None,
+    graph_domain: str = "https://graph.facebook.com",
+    graph_version: str = "v24.0",
+    timeout_seconds: float = 20.0,
+    max_retry_attempts: int = 3,
+    retry_base_seconds: float = 5.0,
+    session: requests.Session | None = None,
+) -> str:
+    resolver = _FacebookPageResolver(
+        access_token=access_token,
+        instagram_account_id=instagram_account_id,
+        graph_domain=graph_domain,
+        graph_version=graph_version,
+        timeout_seconds=timeout_seconds,
+        max_retry_attempts=max_retry_attempts,
+        retry_base_seconds=retry_base_seconds,
+        session=session,
+    )
+    return resolver.resolve()
+
+
+class _FacebookPageResolver:
+    def __init__(
+        self,
+        *,
+        access_token: str,
+        instagram_account_id: str | None,
+        graph_domain: str,
+        graph_version: str,
+        timeout_seconds: float,
+        max_retry_attempts: int,
+        retry_base_seconds: float,
+        session: requests.Session | None,
+    ):
+        self.access_token = access_token
+        self.instagram_account_id = instagram_account_id
+        self.endpoint_base = f"{graph_domain.rstrip('/')}/{graph_version}"
+        self.timeout_seconds = timeout_seconds
+        self.max_retry_attempts = max_retry_attempts
+        self.retry_base_seconds = retry_base_seconds
+        self.session = session or requests.Session()
+
+    def _request_json(self, url: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        response = request_with_retries(
+            self.session,
+            "GET",
+            url,
+            timeout=self.timeout_seconds,
+            max_attempts=self.max_retry_attempts,
+            base_delay_seconds=self.retry_base_seconds,
+            params=params,
+        )
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise FacebookGraphAPIError(
+                "Meta Graph API returned a non-JSON response while resolving Page ID",
+                status_code=response.status_code,
+                payload=response.text,
+            ) from exc
+        if response.status_code >= 400 or "error" in payload:
+            error = payload.get("error", payload)
+            message = error.get("message", "Meta Graph API error") if isinstance(error, dict) else "Meta Graph API error"
+            raise FacebookGraphAPIError(str(message), status_code=response.status_code, payload=payload)
+        return payload
+
+    def resolve(self) -> str:
+        if self.instagram_account_id:
+            try:
+                page_id = self._resolve_page_from_instagram_account()
+            except FacebookGraphAPIError as exc:
+                LOGGER.warning(
+                    "Could not resolve Page through /me/accounts; trying token identity fallback: %s",
+                    exc,
+                )
+                page_id = None
+            if page_id:
+                LOGGER.info(
+                    "Resolved Facebook Page from Instagram account: instagram_account_id=%s page_id=%s",
+                    self.instagram_account_id,
+                    page_id,
+                )
+                return page_id
+
+        page_id = self._resolve_page_token_identity()
+        if page_id:
+            LOGGER.info("Resolved Facebook Page from Page access token identity: page_id=%s", page_id)
+            return page_id
+
+        raise FacebookCleanupError(
+            "Could not resolve Facebook Page ID. Set FACEBOOK_PAGE_ID or provide an ACCESS_TOKEN that can list "
+            "Pages connected to INSTAGRAM_ACCOUNT_ID."
+        )
+
+    def _resolve_page_from_instagram_account(self) -> str | None:
+        url = f"{self.endpoint_base}/me/accounts"
+        params: dict[str, Any] | None = {
+            "fields": "id,name,instagram_business_account{id,username}",
+            "limit": "100",
+            "access_token": self.access_token,
+        }
+        while url:
+            payload = self._request_json(url, params)
+            params = None
+            data = payload.get("data", [])
+            if isinstance(data, list):
+                for page in data:
+                    if not isinstance(page, dict):
+                        continue
+                    ig_account = page.get("instagram_business_account")
+                    if not isinstance(ig_account, dict):
+                        continue
+                    if str(ig_account.get("id")) == str(self.instagram_account_id):
+                        page_id = page.get("id")
+                        return str(page_id) if page_id else None
+            paging = payload.get("paging") if isinstance(payload.get("paging"), dict) else {}
+            next_url = paging.get("next")
+            url = str(next_url) if next_url else ""
+        return None
+
+    def _resolve_page_token_identity(self) -> str | None:
+        payload = self._request_json(
+            f"{self.endpoint_base}/me",
+            {
+                "fields": "id,name,category",
+                "access_token": self.access_token,
+            },
+        )
+        if payload.get("category") and payload.get("id"):
+            return str(payload["id"])
+        return None
+
+
 def parse_cutoff(value: str) -> datetime:
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))

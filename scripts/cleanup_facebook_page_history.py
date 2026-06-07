@@ -15,6 +15,7 @@ from meme_bot.facebook_cleanup import (  # noqa: E402
     FacebookCleanupError,
     FacebookRateLimitError,
     parse_cutoff,
+    resolve_page_id,
     run_cleanup,
 )
 
@@ -37,9 +38,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--page-id", default=os.getenv("FACEBOOK_PAGE_ID") or os.getenv("PAGE_ID"))
     parser.add_argument(
+        "--instagram-account-id",
+        default=os.getenv("INSTAGRAM_ACCOUNT_ID"),
+        help="Used to resolve the connected Facebook Page when --page-id is omitted.",
+    )
+    parser.add_argument(
         "--access-token",
-        default=os.getenv("FACEBOOK_PAGE_ACCESS_TOKEN") or os.getenv("PAGE_ACCESS_TOKEN"),
-        help="Use a Page access token. Prefer FACEBOOK_PAGE_ACCESS_TOKEN or PAGE_ACCESS_TOKEN.",
+        default=os.getenv("FACEBOOK_PAGE_ACCESS_TOKEN") or os.getenv("PAGE_ACCESS_TOKEN") or os.getenv("ACCESS_TOKEN"),
+        help="Use a Page-capable access token. Falls back to ACCESS_TOKEN.",
     )
     parser.add_argument("--before", default="2026-06-01", help="Delete content strictly before this UTC date/time.")
     parser.add_argument("--resource", choices=("posts", "photos", "all"), default="posts")
@@ -64,10 +70,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def config_from_args(args: argparse.Namespace) -> CleanupConfig:
-    if not args.page_id:
-        raise ValueError("Missing page id. Set FACEBOOK_PAGE_ID or pass --page-id.")
     if not args.access_token:
-        raise ValueError("Missing Page access token. Set FACEBOOK_PAGE_ACCESS_TOKEN or pass --access-token.")
+        raise ValueError("Missing access token. Set ACCESS_TOKEN, FACEBOOK_PAGE_ACCESS_TOKEN, or pass --access-token.")
     if args.execute and args.confirm_permanent_delete != DELETE_ACK:
         raise ValueError(f"Live deletion requires --confirm-permanent-delete {DELETE_ACK}")
     if args.max_deletes_per_run < 1:
@@ -77,8 +81,20 @@ def config_from_args(args: argparse.Namespace) -> CleanupConfig:
     if args.max_scan_pages < 1:
         raise ValueError("--max-scan-pages must be at least 1")
 
+    page_id = args.page_id
+    if not page_id:
+        page_id = resolve_page_id(
+            access_token=args.access_token,
+            instagram_account_id=args.instagram_account_id,
+            graph_domain=args.graph_domain,
+            graph_version=args.graph_version,
+            timeout_seconds=args.timeout_seconds,
+            max_retry_attempts=args.max_retry_attempts,
+            retry_base_seconds=args.retry_base_seconds,
+        )
+
     return CleanupConfig(
-        page_id=args.page_id,
+        page_id=page_id,
         access_token=args.access_token,
         before=parse_cutoff(args.before),
         resources=_resources(args.resource),  # type: ignore[arg-type]

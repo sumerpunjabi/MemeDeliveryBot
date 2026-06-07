@@ -4,7 +4,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from meme_bot.facebook_cleanup import CleanupConfig, FacebookPageCleanupClient, parse_cutoff, run_cleanup
+from meme_bot.facebook_cleanup import CleanupConfig, FacebookPageCleanupClient, parse_cutoff, resolve_page_id, run_cleanup
 
 
 class FakeResponse:
@@ -106,6 +106,55 @@ class FacebookCleanupTest(unittest.TestCase):
         self.assertEqual(list(client.list_page_content("photos")), [])
 
         self.assertEqual(session.requests[0]["params"]["type"], "uploaded")
+
+    def test_resolves_page_id_from_instagram_account(self):
+        session = FakeSession(
+            [
+                FakeResponse(
+                    200,
+                    {
+                        "data": [
+                            {
+                                "id": "page-1",
+                                "instagram_business_account": {"id": "ig-user"},
+                            }
+                        ]
+                    },
+                )
+            ]
+        )
+
+        page_id = resolve_page_id(
+            access_token="token",
+            instagram_account_id="ig-user",
+            timeout_seconds=1,
+            max_retry_attempts=1,
+            retry_base_seconds=0,
+            session=session,
+        )
+
+        self.assertEqual(page_id, "page-1")
+        self.assertEqual(session.requests[0]["url"], "https://graph.facebook.com/v24.0/me/accounts")
+
+    def test_resolves_page_id_from_page_token_identity_after_accounts_failure(self):
+        session = FakeSession(
+            [
+                FakeResponse(400, {"error": {"message": "unsupported get request"}}),
+                FakeResponse(200, {"id": "page-2", "name": "Page", "category": "Media"}),
+            ]
+        )
+
+        page_id = resolve_page_id(
+            access_token="token",
+            instagram_account_id="ig-user",
+            timeout_seconds=1,
+            max_retry_attempts=1,
+            retry_base_seconds=0,
+            session=session,
+        )
+
+        self.assertEqual(page_id, "page-2")
+        self.assertEqual(session.requests[1]["url"], "https://graph.facebook.com/v24.0/me")
 
 
 if __name__ == "__main__":

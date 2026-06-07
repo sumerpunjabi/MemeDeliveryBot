@@ -239,6 +239,8 @@ $env:FACEBOOK_PAGE_ACCESS_TOKEN="your-page-access-token"
 python scripts/cleanup_facebook_page_history.py --before 2026-06-01 --resource posts
 ```
 
+If `FACEBOOK_PAGE_ACCESS_TOKEN` is not set, the script falls back to `ACCESS_TOKEN`. If `FACEBOOK_PAGE_ID` is not set, it tries to resolve the connected Facebook Page from `INSTAGRAM_ACCOUNT_ID`.
+
 Live cleanup is intentionally capped and slow by default to reduce request pressure:
 
 ```bash
