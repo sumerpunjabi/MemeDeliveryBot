@@ -130,7 +130,7 @@ class InstagramClient:
         container_id = self.create_image_container(image_url, caption)
         return self.publish_container(container_id)
 
-    def create_reel_container(self, caption: str, *, share_to_feed: bool = True) -> tuple[str, str]:
+    def create_reel_container(self, caption: str, *, share_to_feed: bool = False) -> tuple[str, str]:
         self.config.validate_for_instagram()
         url = f"{self.config.endpoint_base}/{self.config.instagram_account_id}/media"
         payload = self._post_json(
@@ -174,6 +174,36 @@ class InstagramClient:
             },
         )
 
+    def get_media_details(self, media_id: str) -> dict[str, Any]:
+        self.config.validate_for_instagram()
+        url = f"{self.config.endpoint_base}/{media_id}"
+        return self._get_json(
+            url,
+            {
+                "fields": "id,media_type,media_product_type,permalink",
+                "access_token": self.config.access_token or "",
+            },
+        )
+
+    def verify_published_reel(self, media_id: str) -> None:
+        payload = self.get_media_details(media_id)
+        media_product_type = str(payload.get("media_product_type", "")).upper()
+        media_type = str(payload.get("media_type", "")).upper()
+        if media_product_type != "REELS":
+            raise InstagramAPIError(
+                "Instagram published media is not a Reel",
+                payload={
+                    "media_id": media_id,
+                    "media_product_type": media_product_type,
+                    "media_type": media_type,
+                    "details": payload,
+                },
+            )
+        LOGGER.info(
+            "Verified Instagram media is a Reel",
+            extra={"instagram_media_id": media_id, "media_product_type": media_product_type},
+        )
+
     def wait_for_reel_container_ready(self, container_id: str) -> None:
         for attempt in range(1, REEL_STATUS_MAX_ATTEMPTS + 1):
             payload = self.get_container_status(container_id)
@@ -194,8 +224,10 @@ class InstagramClient:
             )
             time.sleep(REEL_STATUS_DELAY_SECONDS)
 
-    def post_reel(self, video_path: Path, caption: str, *, share_to_feed: bool = True) -> str:
+    def post_reel(self, video_path: Path, caption: str, *, share_to_feed: bool = False) -> str:
         container_id, upload_uri = self.create_reel_container(caption, share_to_feed=share_to_feed)
         self.upload_reel_video(upload_uri, video_path)
         self.wait_for_reel_container_ready(container_id)
-        return self.publish_container(container_id)
+        media_id = self.publish_container(container_id)
+        self.verify_published_reel(media_id)
+        return media_id

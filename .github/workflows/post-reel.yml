@@ -80,7 +80,7 @@ jobs:
           REEL_MIN_SCORE: ${{ vars.REEL_MIN_SCORE || vars.MIN_SCORE || '0' }}
           REEL_MAX_DURATION_SECONDS: ${{ vars.REEL_MAX_DURATION_SECONDS || '90' }}
           REEL_MAX_BYTES: ${{ vars.REEL_MAX_BYTES || '100000000' }}
-          REEL_SHARE_TO_FEED: ${{ vars.REEL_SHARE_TO_FEED || 'true' }}
+          REEL_SHARE_TO_FEED: ${{ vars.REEL_SHARE_TO_FEED || 'false' }}
           GRAPH_VERSION: ${{ vars.GRAPH_VERSION || 'v22.0' }}
           REQUEST_TIMEOUT_SECONDS: ${{ vars.REQUEST_TIMEOUT_SECONDS || '20' }}
           MAX_RETRY_ATTEMPTS: ${{ vars.MAX_RETRY_ATTEMPTS || '3' }}

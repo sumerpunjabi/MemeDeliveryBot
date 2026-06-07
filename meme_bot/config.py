@@ -106,7 +106,7 @@ class BotConfig:
             reel_tracker_path=Path(os.getenv("REEL_TRACKER_PATH", "state/reels-posted.jsonl")),
             reel_max_duration_seconds=_get_int("REEL_MAX_DURATION_SECONDS", 90),
             reel_max_bytes=_get_int("REEL_MAX_BYTES", 100_000_000),
-            reel_share_to_feed=_get_bool("REEL_SHARE_TO_FEED", True),
+            reel_share_to_feed=_get_bool("REEL_SHARE_TO_FEED", False),
             reels_dry_run=_get_bool("REELS_DRY_RUN", dry_run),
         )
 

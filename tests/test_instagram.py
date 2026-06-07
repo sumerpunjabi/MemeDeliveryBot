@@ -130,7 +130,6 @@ class InstagramTest(unittest.TestCase):
 
         container_id, upload_uri = InstagramClient(config(), session=session).create_reel_container(
             "caption",
-            share_to_feed=False,
         )
 
         self.assertEqual(container_id, "container")
@@ -139,6 +138,20 @@ class InstagramTest(unittest.TestCase):
         self.assertEqual(params["media_type"], "REELS")
         self.assertEqual(params["upload_type"], "resumable")
         self.assertEqual(params["share_to_feed"], "false")
+
+    def test_verify_published_reel_checks_media_product_type(self):
+        session = FakeSession([FakeResponse(200, {"id": "media", "media_product_type": "REELS", "media_type": "VIDEO"})])
+
+        InstagramClient(config(), session=session).verify_published_reel("media")
+
+        self.assertEqual(session.requests[0]["method"], "GET")
+        self.assertEqual(session.requests[0]["params"]["fields"], "id,media_type,media_product_type,permalink")
+
+    def test_verify_published_reel_raises_for_feed_video(self):
+        session = FakeSession([FakeResponse(200, {"id": "media", "media_product_type": "FEED", "media_type": "VIDEO"})])
+
+        with self.assertRaises(InstagramAPIError):
+            InstagramClient(config(), session=session).verify_published_reel("media")
 
     def test_upload_reel_video_posts_binary_to_upload_uri(self):
         with TemporaryDirectory() as tmp:
@@ -188,6 +201,7 @@ class InstagramTest(unittest.TestCase):
                     FakeResponse(200, {"success": True}),
                     FakeResponse(200, {"status_code": "FINISHED"}),
                     FakeResponse(200, {"id": "media"}),
+                    FakeResponse(200, {"id": "media", "media_product_type": "REELS", "media_type": "VIDEO"}),
                 ]
             )
 
@@ -196,6 +210,7 @@ class InstagramTest(unittest.TestCase):
         self.assertEqual(media_id, "media")
         self.assertEqual(session.requests[0]["params"]["media_type"], "REELS")
         self.assertEqual(session.requests[3]["params"]["creation_id"], "container")
+        self.assertEqual(session.requests[4]["params"]["fields"], "id,media_type,media_product_type,permalink")
 
 
 if __name__ == "__main__":

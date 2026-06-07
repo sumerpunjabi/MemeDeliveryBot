@@ -104,7 +104,7 @@ Optional GitHub Actions variables or local environment variables:
 - `REEL_TRACKER_PATH`: default `state/reels-posted.jsonl`
 - `REEL_MAX_DURATION_SECONDS`: default `90`
 - `REEL_MAX_BYTES`: default `100000000`
-- `REEL_SHARE_TO_FEED`: default `true`
+- `REEL_SHARE_TO_FEED`: default `false`; keep false to force Reels-only publishing instead of also sharing to the feed
 - `REELS_DRY_RUN`: when true, selects/downloads/hashes a Reel candidate but does not publish or write tracker state
 
 ## GitHub Actions
