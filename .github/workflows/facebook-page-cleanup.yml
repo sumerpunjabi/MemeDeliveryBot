@@ -1,0 +1,90 @@
+name: Facebook Page Cleanup
+
+on:
+  workflow_dispatch:
+    inputs:
+      before:
+        description: "Delete/list content strictly before this UTC date"
+        required: true
+        default: "2026-06-01"
+      resource:
+        description: "Content type to inspect"
+        required: true
+        default: "posts"
+        type: choice
+        options:
+          - posts
+          - photos
+          - all
+      dry_run:
+        description: "List matches without deleting"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+      max_deletes_per_run:
+        description: "Live delete cap per run"
+        required: true
+        default: "25"
+      confirm_permanent_delete:
+        description: "Required for live delete: DELETE_OLD_PAGE_CONTENT"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: facebook-page-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout application code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run cleanup check
+        env:
+          FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID || secrets.PAGE_ID }}
+          FACEBOOK_PAGE_ACCESS_TOKEN: ${{ secrets.FACEBOOK_PAGE_ACCESS_TOKEN || secrets.PAGE_ACCESS_TOKEN }}
+          GRAPH_VERSION: ${{ vars.GRAPH_VERSION || 'v24.0' }}
+          BEFORE: ${{ inputs.before }}
+          RESOURCE: ${{ inputs.resource }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          MAX_DELETES_PER_RUN: ${{ inputs.max_deletes_per_run }}
+          CONFIRM_PERMANENT_DELETE: ${{ inputs.confirm_permanent_delete }}
+        run: |
+          set -euo pipefail
+          args=(
+            --before "${BEFORE}"
+            --resource "${RESOURCE}"
+            --max-deletes-per-run "${MAX_DELETES_PER_RUN}"
+          )
+          if [ "${DRY_RUN}" != "true" ]; then
+            if [ "${CONFIRM_PERMANENT_DELETE}" != "DELETE_OLD_PAGE_CONTENT" ]; then
+              echo "Live deletion requires confirm_permanent_delete=DELETE_OLD_PAGE_CONTENT"
+              exit 2
+            fi
+            args+=(--execute --confirm-permanent-delete DELETE_OLD_PAGE_CONTENT)
+          fi
+          python scripts/cleanup_facebook_page_history.py "${args[@]}"
+
+      - name: Upload cleanup audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: facebook-page-cleanup-audit
+          path: cleanup-state/
+          if-no-files-found: ignore
