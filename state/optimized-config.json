@@ -1,0 +1,75 @@
+{
+  "analytics": {
+    "lookback_days": 14,
+    "max_media_per_run": 50,
+    "metrics": [
+      "likes",
+      "comments",
+      "saved",
+      "shares",
+      "reach",
+      "views",
+      "plays",
+      "total_interactions",
+      "follows"
+    ]
+  },
+  "captions": {
+    "max_hashtags": 4,
+    "recent_template_window": 5
+  },
+  "generated_at": "2026-06-14T18:03:28Z",
+  "generated_by": "meme_bot.optimizer",
+  "optimizer": {
+    "enabled": true,
+    "max_threshold": 85.0,
+    "max_weight": 1.5,
+    "max_weight_change": 0.15,
+    "min_group_samples": 5,
+    "min_threshold": 20.0,
+    "min_total_samples": 20,
+    "min_weight": 0.5,
+    "recent_run_window": 20,
+    "threshold_step": 3.0
+  },
+  "scoring": {
+    "caption_template_weights": {
+      "be_honest": 0.85,
+      "comments_ruthless": 1.15,
+      "rate_this": 0.9709,
+      "saved_for_later": 0.8983,
+      "send_to_friend": 0.8588,
+      "tag_someone": 0.85
+    },
+    "duration_bucket_weights": {
+      "0-15s": 0.85,
+      "unknown": 0.8664
+    },
+    "hashtag_pool_weights": {
+      "comments": 1.035,
+      "memes": 1.15,
+      "reels": 0.85,
+      "relatable": 0.9006
+    },
+    "max_age_hours": 48.0,
+    "media_type_weights": {
+      "image": 0.8664,
+      "reel": 1.1015
+    },
+    "minimum_total_score": 35.0,
+    "paused_subreddits": [],
+    "posting_hour_weights": {
+      "1": 0.85,
+      "21": 0.9148
+    },
+    "preferred_age_hours": 12.0,
+    "reel_soft_max_duration_seconds": 45,
+    "subreddit_weights": {}
+  },
+  "storage": {
+    "max_age_days": 365,
+    "max_posts": 1000,
+    "max_snapshots_per_post": 8
+  },
+  "version": 1
+}
