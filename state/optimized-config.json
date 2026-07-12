@@ -18,7 +18,7 @@
     "max_hashtags": 4,
     "recent_template_window": 5
   },
-  "generated_at": "2026-07-05T17:48:17Z",
+  "generated_at": "2026-07-12T17:44:44Z",
   "generated_by": "meme_bot.optimizer",
   "optimizer": {
     "enabled": true,
@@ -34,45 +34,46 @@
   },
   "scoring": {
     "caption_template_weights": {
-      "be_honest": 0.6341,
+      "be_honest": 0.621,
       "comments_ruthless": 1.5,
-      "rate_this": 0.9001,
-      "saved_for_later": 0.6391,
-      "send_to_friend": 0.5274,
-      "tag_someone": 1.2628,
-      "too_specific": 0.7357
+      "rate_this": 0.8353,
+      "saved_for_later": 0.5802,
+      "send_to_friend": 0.5,
+      "tag_someone": 1.4426,
+      "too_specific": 0.6512
     },
     "duration_bucket_weights": {
-      "0-15s": 0.9783,
+      "0-15s": 0.9667,
       "16-30s": 1.5,
-      "unknown": 0.532
+      "unknown": 0.5
     },
     "hashtag_pool_weights": {
-      "comments": 0.8516,
-      "memes": 1.4303,
-      "reels": 0.9081,
-      "relatable": 0.6811
+      "comments": 0.7934,
+      "memes": 1.4522,
+      "reels": 0.9848,
+      "relatable": 0.6373
     },
     "max_age_hours": 48.0,
     "media_type_weights": {
-      "image": 0.532,
+      "image": 0.5,
       "reel": 1.5
     },
     "minimum_total_score": 41.0,
     "paused_subreddits": [],
     "posting_hour_weights": {
-      "0": 0.7225,
-      "1": 0.522,
-      "13": 1.3225,
-      "14": 0.7586,
+      "0": 0.6141,
+      "1": 0.5,
+      "12": 0.85,
+      "13": 1.5,
+      "14": 0.6886,
       "15": 1.5,
-      "16": 0.6904,
-      "17": 0.6141,
-      "20": 0.9576,
-      "21": 0.5938,
-      "6": 0.8531,
-      "7": 1.0108,
-      "8": 1.1095
+      "16": 0.607,
+      "17": 0.522,
+      "20": 0.9392,
+      "21": 0.5047,
+      "6": 0.7251,
+      "7": 0.9856,
+      "8": 1.1565
     },
     "preferred_age_hours": 12.0,
     "reel_soft_max_duration_seconds": 45,
