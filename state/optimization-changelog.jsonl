@@ -151,3 +151,15 @@
 {"average_score":32.5168,"created_at":"2026-07-26T17:46:29Z","new_value":0.9739,"old_value":0.9848,"path":"scoring.hashtag_pool_weights.reels","reason":"historical_performance_below_baseline","samples":35}
 {"average_score":31.49,"created_at":"2026-07-26T17:46:29Z","new_value":0.9268,"old_value":0.949,"path":"scoring.duration_bucket_weights.0-15s","reason":"historical_performance_below_baseline","samples":83}
 {"average_score":0.5,"created_at":"2026-07-26T17:46:29Z","new_value":35.0,"old_value":38.0,"path":"scoring.minimum_total_score","reason":"too_few_posts_found","samples":20}
+{"average_score":14.2857,"created_at":"2026-08-02T17:46:07Z","new_value":0.535,"old_value":0.6141,"path":"scoring.posting_hour_weights.12","reason":"historical_performance_below_baseline","samples":7}
+{"average_score":19.0507,"created_at":"2026-08-02T17:46:07Z","new_value":0.5106,"old_value":0.5696,"path":"scoring.posting_hour_weights.14","reason":"historical_performance_below_baseline","samples":9}
+{"average_score":18.0093,"created_at":"2026-08-02T17:46:07Z","new_value":0.619,"old_value":0.7232,"path":"scoring.posting_hour_weights.20","reason":"historical_performance_below_baseline","samples":24}
+{"average_score":6.0317,"created_at":"2026-08-02T17:46:07Z","new_value":0.5,"old_value":0.5239,"path":"scoring.posting_hour_weights.6","reason":"historical_performance_below_baseline","samples":17}
+{"average_score":30.5162,"created_at":"2026-08-02T17:46:07Z","new_value":0.9168,"old_value":0.9286,"path":"scoring.posting_hour_weights.7","reason":"historical_performance_below_baseline","samples":14}
+{"average_score":47.5818,"created_at":"2026-08-02T17:46:07Z","new_value":1.5,"old_value":1.4192,"path":"scoring.posting_hour_weights.8","reason":"historical_performance_above_baseline","samples":10}
+{"average_score":23.9796,"created_at":"2026-08-02T17:46:07Z","new_value":0.5,"old_value":0.5012,"path":"scoring.caption_template_weights.be_honest","reason":"historical_performance_below_baseline","samples":25}
+{"average_score":34.0104,"created_at":"2026-08-02T17:46:07Z","new_value":0.8077,"old_value":0.7901,"path":"scoring.caption_template_weights.rate_this","reason":"historical_performance_above_baseline","samples":26}
+{"average_score":20.557,"created_at":"2026-08-02T17:46:07Z","new_value":0.5456,"old_value":0.624,"path":"scoring.hashtag_pool_weights.comments","reason":"historical_performance_below_baseline","samples":38}
+{"average_score":28.6848,"created_at":"2026-08-02T17:46:07Z","new_value":0.9388,"old_value":0.9739,"path":"scoring.hashtag_pool_weights.reels","reason":"historical_performance_below_baseline","samples":43}
+{"average_score":30.3708,"created_at":"2026-08-02T17:46:07Z","new_value":0.6181,"old_value":0.628,"path":"scoring.hashtag_pool_weights.relatable","reason":"historical_performance_below_baseline","samples":24}
+{"average_score":29.5676,"created_at":"2026-08-02T17:46:07Z","new_value":0.901,"old_value":0.9268,"path":"scoring.duration_bucket_weights.0-15s","reason":"historical_performance_below_baseline","samples":102}
