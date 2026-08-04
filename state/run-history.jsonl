@@ -246,3 +246,4 @@
 {"candidates_fetched":117,"candidates_ranked":0,"created_at":"2026-08-04T00:16:10Z","media_type":"image","status":"no_candidate"}
 {"candidates_fetched":7,"candidates_ranked":2,"caption_template_id":"rate_this","created_at":"2026-08-04T06:14:27Z","generated_score":67.5212,"instagram_media_id":"18107339096027003","media_type":"reel","reddit_id":"1veua5n","status":"published"}
 {"candidates_fetched":6,"candidates_ranked":4,"caption_template_id":"too_specific","created_at":"2026-08-04T13:21:04Z","generated_score":150.2632,"instagram_media_id":"18124988734781730","media_type":"reel","reddit_id":"1vf3577","status":"published"}
+{"candidates_fetched":119,"candidates_ranked":1,"caption_template_id":"tag_someone","created_at":"2026-08-04T16:23:50Z","generated_score":35.945,"instagram_media_id":"18180714148381985","media_type":"image","reddit_id":"1vf1z0j","status":"published"}
