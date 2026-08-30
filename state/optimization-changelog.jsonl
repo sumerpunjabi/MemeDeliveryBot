@@ -188,3 +188,12 @@
 {"average_score":20.3095,"created_at":"2026-08-23T17:03:28Z","new_value":0.7639,"old_value":0.8384,"path":"scoring.hashtag_pool_weights.reels","reason":"historical_performance_below_baseline","samples":68}
 {"average_score":28.5668,"created_at":"2026-08-23T17:03:28Z","new_value":0.6205,"old_value":0.6056,"path":"scoring.hashtag_pool_weights.relatable","reason":"historical_performance_above_baseline","samples":32}
 {"average_score":23.1082,"created_at":"2026-08-23T17:03:28Z","new_value":0.7761,"old_value":0.8184,"path":"scoring.duration_bucket_weights.0-15s","reason":"historical_performance_below_baseline","samples":157}
+{"average_score":10.5584,"created_at":"2026-08-30T19:29:28Z","new_value":0.7225,"old_value":0.85,"path":"scoring.posting_hour_weights.11","reason":"historical_performance_below_baseline","samples":11}
+{"average_score":35.3869,"created_at":"2026-08-30T19:29:28Z","new_value":1.2552,"old_value":1.15,"path":"scoring.posting_hour_weights.19","reason":"historical_performance_above_baseline","samples":10}
+{"average_score":11.3159,"created_at":"2026-08-30T19:29:28Z","new_value":0.7351,"old_value":0.8648,"path":"scoring.posting_hour_weights.4","reason":"historical_performance_below_baseline","samples":14}
+{"average_score":22.167,"created_at":"2026-08-30T19:29:28Z","new_value":0.9016,"old_value":0.9311,"path":"scoring.posting_hour_weights.5","reason":"historical_performance_below_baseline","samples":5}
+{"average_score":30.5162,"created_at":"2026-08-30T19:29:28Z","new_value":1.0418,"old_value":0.9954,"path":"scoring.posting_hour_weights.7","reason":"historical_performance_above_baseline","samples":14}
+{"average_score":29.9589,"created_at":"2026-08-30T19:29:28Z","new_value":0.9967,"old_value":0.9505,"path":"scoring.caption_template_weights.rate_this","reason":"historical_performance_above_baseline","samples":39}
+{"average_score":24.0912,"created_at":"2026-08-30T19:29:28Z","new_value":0.7395,"old_value":0.7639,"path":"scoring.hashtag_pool_weights.reels","reason":"historical_performance_below_baseline","samples":71}
+{"average_score":24.2999,"created_at":"2026-08-30T19:29:28Z","new_value":0.6035,"old_value":0.6205,"path":"scoring.hashtag_pool_weights.relatable","reason":"historical_performance_below_baseline","samples":38}
+{"average_score":23.2696,"created_at":"2026-08-30T19:29:28Z","new_value":0.7409,"old_value":0.7761,"path":"scoring.duration_bucket_weights.0-15s","reason":"historical_performance_below_baseline","samples":173}
