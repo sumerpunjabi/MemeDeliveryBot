@@ -206,3 +206,16 @@
 {"average_score":24.4792,"created_at":"2026-09-06T18:39:42Z","new_value":0.5686,"old_value":0.6035,"path":"scoring.hashtag_pool_weights.relatable","reason":"historical_performance_below_baseline","samples":41}
 {"average_score":25.8406,"created_at":"2026-09-06T18:39:42Z","new_value":0.7075,"old_value":0.7409,"path":"scoring.duration_bucket_weights.0-15s","reason":"historical_performance_below_baseline","samples":192}
 {"average_score":25.8082,"created_at":"2026-09-06T18:39:42Z","new_value":0.964,"old_value":0.987,"path":"scoring.duration_bucket_weights.31-45s","reason":"historical_performance_below_baseline","samples":5}
+{"average_score":10.5584,"created_at":"2026-09-13T18:59:23Z","new_value":0.522,"old_value":0.6141,"path":"scoring.posting_hour_weights.11","reason":"historical_performance_below_baseline","samples":11}
+{"average_score":35.3869,"created_at":"2026-09-13T18:59:23Z","new_value":1.3787,"old_value":1.3259,"path":"scoring.posting_hour_weights.19","reason":"historical_performance_above_baseline","samples":10}
+{"average_score":109.5912,"created_at":"2026-09-13T18:59:23Z","new_value":1.15,"old_value":1.0,"path":"scoring.posting_hour_weights.22","reason":"historical_performance_above_baseline","samples":6}
+{"average_score":11.3128,"created_at":"2026-09-13T18:59:23Z","new_value":0.5311,"old_value":0.6248,"path":"scoring.posting_hour_weights.4","reason":"historical_performance_below_baseline","samples":14}
+{"average_score":22.167,"created_at":"2026-09-13T18:59:23Z","new_value":0.81,"old_value":0.8581,"path":"scoring.posting_hour_weights.5","reason":"historical_performance_below_baseline","samples":5}
+{"average_score":28.4818,"created_at":"2026-09-13T18:59:23Z","new_value":1.0184,"old_value":1.0418,"path":"scoring.posting_hour_weights.7","reason":"historical_performance_below_baseline","samples":15}
+{"average_score":32.8552,"created_at":"2026-09-13T18:59:23Z","new_value":1.0628,"old_value":1.0377,"path":"scoring.caption_template_weights.rate_this","reason":"historical_performance_above_baseline","samples":45}
+{"average_score":38.1255,"created_at":"2026-09-13T18:59:23Z","new_value":0.5424,"old_value":0.5,"path":"scoring.caption_template_weights.saved_for_later","reason":"historical_performance_above_baseline","samples":40}
+{"average_score":29.8957,"created_at":"2026-09-13T18:59:23Z","new_value":1.4844,"old_value":1.5,"path":"scoring.caption_template_weights.tag_someone","reason":"historical_performance_below_baseline","samples":44}
+{"average_score":27.6983,"created_at":"2026-09-13T18:59:23Z","new_value":0.7197,"old_value":0.748,"path":"scoring.hashtag_pool_weights.reels","reason":"historical_performance_below_baseline","samples":83}
+{"average_score":36.7169,"created_at":"2026-09-13T18:59:23Z","new_value":0.6077,"old_value":0.5686,"path":"scoring.hashtag_pool_weights.relatable","reason":"historical_performance_above_baseline","samples":42}
+{"average_score":28.3097,"created_at":"2026-09-13T18:59:23Z","new_value":0.6852,"old_value":0.7075,"path":"scoring.duration_bucket_weights.0-15s","reason":"historical_performance_below_baseline","samples":211}
+{"average_score":25.8082,"created_at":"2026-09-13T18:59:23Z","new_value":0.9328,"old_value":0.964,"path":"scoring.duration_bucket_weights.31-45s","reason":"historical_performance_below_baseline","samples":5}
